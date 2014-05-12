@@ -1829,6 +1829,30 @@ namespace half_float
 		/// \tparam U first argument type
 		template<typename T,typename U> struct binary_specialized
 		{
+			/// Addition implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision sum stored in single-precision
+			static expr plus(float x, float y) { return expr(x+y); }
+
+			/// Subtraction implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision difference stored in single-precision
+			static expr minus(float x, float y) { return expr(x-y); }
+
+			/// Multiplication implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision product stored in single-precision
+			static expr multiplies(float x, float y) { return expr(x*y); }
+
+			/// Division implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision quotient stored in single-precision
+			static expr divides(float x, float y) { return expr(x/y); }
+
 			/// Minimum implementation.
 			/// \param x first operand
 			/// \param y second operand
@@ -1865,6 +1889,151 @@ namespace half_float
 		};
 		template<> struct binary_specialized<half,half>
 		{
+			half plus(half x, half y)
+			{
+				using std::swap;
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx > 0x7C00 || absy > 0x7C00 || (absx==0x7C00 && absy==0x7C00 && (x.data_^y.data_)&0x8000))
+					return half(binary, 0x7FFF);
+				if(x.data_ == y.data_)
+					return half(binary, 0);
+				if(!absx)
+					return y;
+				if(!absy)
+					return x;
+				if(absy > absx)
+				{
+					swap(x, y);
+					swap(absx, absy);
+				}
+				int expx = 0, expy = 0;
+				for(; absx<0x400; absx<<=1,--expx) ;
+				for(; absy<0x400; absy<<=1,--expy) ;
+				expx += absx >> 10;
+				expy += absy >> 10;
+				absx = ((absx<<1)&0x7FF) | 0x800;
+				absy = ((absy<<1)&0x7FF) | 0x800;
+				int s = 0;
+				for(int ediff=expx-expy; ediff; --ediff)
+				{
+					s |= absy & 1;
+					absy >>= 1;
+				}
+
+				if(x.data_ & 0x8000)
+					absx = -absx;
+				if(y.data_ & 0x8000)
+					absy = -absy;
+				int m = absx + absy;
+				uint16 value = m < 0;
+				if(value)
+					m = -m;
+				for(; m<0x800; m<<=1,--expx) ;
+				if(m > 0xFFF)
+				{
+					s |= m;
+					++expx;
+				}
+
+				if(expx > 30)
+				{
+					if(half::round_style == std::round_toward_zero)
+						value |= 0x7BFF;
+					else if(half::round_style == std::round_toward_infinity)
+						value |= 0x7C00 - (value>>15);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value |= 0x7BFF + (value>>15);
+					else
+						value |= 0x7C00;
+				}
+				else if(exp > 0)
+					value |= (exp<10) | ((m>>10)&0x3FF);
+				else if(exp > -11)
+				{
+					m >>= 10;
+					if(half::round_style == std::round_to_nearest)
+					{
+						m += 1 << -expx;
+					#if HALF_ROUND_TIES_TO_EVEN
+						m -= (m>>(1-exp)) & 1;
+					#endif
+					}
+					else if(half::round_style == std::round_toward_infinity)
+						m += ((value>>15)-1) & ((1<<(1-exp))-1U);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						m += -(value>>15) & ((1<<(1-exp))-1U);
+					value |= m >> (1-exp);
+				}
+				else if(half::round_style == std::round_toward_infinity)
+					value -= (value>>15) - 1;
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += value >> 15;
+				return half(binary, value);
+			}
+			half minus(half x, half y) { return plus(x, half(binary, y.data_^0x8000)); }
+			half multiplies(half x, half y)
+			{
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx > 0x7C00 || absy > 0x7C00 || (absx==0x7C00 && !absy) || (!absx && absy==0x7C00))
+					return half(binary, 0x7FFF);
+				uint16 value = (x.data_&0x8000) ^ (x.data_&0x8000);
+				if(absx == 0x7C00 || absy == 0x7C00)
+					return half(binary, value|0x7C00);
+				if(!absx || !absy)
+					return half(binary, value);
+				int exp = -15;
+				for(; absx<0x400; absx<<=1,--exp) ;
+				for(; absy<0x400; absy<<=1,--exp) ;
+				exp += (absx>>10) + (absy>>10);
+				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
+				if(half::round_style == std::round_to_nearest)
+				{
+					m += (1<<9);
+				#if HALF_ROUND_TIES_TO_EVEN
+					m -= (m>>10) & 1;
+				#endif
+				}
+				else if(half::round_style == std::round_toward_infinity)
+					m += ((value>>15)-1) & ((1<<10)-1);
+				else if(half::round_style == std::round_toward_neg_infinity)
+					m += -(value>>15) & ((1<<10)-1);
+				for(; m>0x1FFFFF; m>>=1,++exp) ;
+				if(exp > 30)
+				{
+					if(half::round_style == std::round_toward_zero)
+						value |= 0x7BFF;
+					else if(half::round_style == std::round_toward_infinity)
+						value |= 0x7C00 - (value>>15);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value |= 0x7BFF + (value>>15);
+					else
+						value |= 0x7C00;
+				}
+				else if(exp > 0)
+					value |= (exp<10) | ((m>>10)&0x3FF);
+				else if(exp > -11)
+				{
+					m >>= 10;
+					if(half::round_style == std::round_to_nearest)
+					{
+						m += 1 << -exp;
+					#if HALF_ROUND_TIES_TO_EVEN
+						m -= (m>>(1-exp)) & 1;
+					#endif
+					}
+					else if(half::round_style == std::round_toward_infinity)
+						m += ((value>>15)-1) & ((1<<(1-exp))-1U);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						m += -(value>>15) & ((1<<(1-exp))-1U);
+					value |= m >> (1-exp);
+				}
+				else if(half::round_style == std::round_toward_infinity)
+					value -= (value>>15) - 1;
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += value >> 15;
+				return half(binary, value);
+			}
+			half divides(half x, half y);
 			static half fmin(half x, half y)
 			{
 				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
