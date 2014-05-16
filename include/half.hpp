@@ -1913,16 +1913,11 @@ namespace half_float
 				int mx = ((absx&0x3FF)|((absx>0x3FF)<<10)) << 3, my;
 				if(d < 13)
 				{
-//					if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-					{
-						my = ((absy&0x3FF)|((absy>0x3FF)<<10)) << 2;
-						int s = 0;
-						for(int i=0; i<d; ++i,my>>=1)
-							s |= my & 1;
-						my = (my<<1) | s;
-					}
-//					else
-//						my = ((absy&0x3FF)|((absy>0x3FF)<<10)) << 3 >> d;
+					my = ((absy&0x3FF)|((absy>0x3FF)<<10)) << 2;
+					int s = 0;
+					for(int i=0; i<d; ++i,my>>=1)
+						s |= my & 1;
+					my = (my<<1) | s;
 				}
 				else
 					my = 1;
@@ -1935,42 +1930,33 @@ namespace half_float
 				else
 				{
 					m = mx + my;
-					int i = m >> 14;
-//					if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-						s = m & i;
-					m >>= i;
-					exp += i;
+					if(m > 0x3FFF)
+					{
+						s = m & 1;
+						m >>= 1;
+						if(++exp > 30)
+						{
+							if(half::round_style == std::round_toward_infinity)
+								return half(binary, value|0x7C00-(value>>15));
+							else if(half::round_style == std::round_toward_neg_infinity)
+								return half(binary, value|0x7BFF+(value>>15));
+							return half(binary, value|0x7BFF+(half::round_style!=std::round_toward_zero));
+						}
+					}
 				}
-//				if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-				{
-					s |= (m|(m>>1)) & 1;
-					g = (m>>2) & 1;
-				}
-				if(exp > 30)
-				{
-					if(half::round_style == std::round_toward_zero)
-						value |= 0x7BFF;
-					else if(half::round_style == std::round_toward_infinity)
-						value |= 0x7C00 - (value>>15);
-					else if(half::round_style == std::round_toward_neg_infinity)
-						value |= 0x7BFF + (value>>15);
-					else
-						value |= 0x7C00;
-				}
-				else
-				{
-					value |= ((exp-1)<<10) + (m>>3);
-					if(half::round_style == std::round_to_nearest)
-						#if HALF_ROUND_TIES_TO_EVEN
-							value += g & (s|value);
-						#else
-							value += g;
-						#endif
-					else if(half::round_style == std::round_toward_infinity)
-						value += ~(value>>15) & (g|s);
-					else if(half::round_style == std::round_toward_neg_infinity)
-						value += (value>>15) & (g|s);
-				}
+				s |= (m|(m>>1)) & 1;
+				g = (m>>2) & 1;
+				value |= ((exp-1)<<10) + (m>>3);
+				if(half::round_style == std::round_to_nearest)
+					#if HALF_ROUND_TIES_TO_EVEN
+						value += g & (s|value);
+					#else
+						value += g;
+					#endif
+				else if(half::round_style == std::round_toward_infinity)
+					value += ~(value>>15) & (g|s);
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += (value>>15) & (g|s);
 				return half(binary, value);
 			}
 
@@ -2009,14 +1995,12 @@ namespace half_float
 				}
 				if(exp > 30)
 				{
-					if(half::round_style == std::round_toward_zero)
-						value |= 0x7BFF;
-					else if(half::round_style == std::round_toward_infinity)
+					if(half::round_style == std::round_toward_infinity)
 						value |= 0x7C00 - (value>>15);
 					else if(half::round_style == std::round_toward_neg_infinity)
 						value |= 0x7BFF + (value>>15);
 					else
-						value |= 0x7C00;
+						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
 				}
 				else if(exp > -11)
 				{
@@ -2072,20 +2056,20 @@ namespace half_float
 				std::ldiv_t div = std::div(mx<<11, my);
 				int m = div.quot;
 
-				int i = mx >= my, g = m & i, s = div.rem != 0;
-				m >>= i;
-				exp -= !i;
+				int i = mx < my;
+				m <<= i;
+				exp -= i;
+				int g = m & 1, s = div.rem != 0;
+				m >>= 1;
 
 				if(exp > 30)
 				{
-					if(half::round_style == std::round_toward_zero)
-						value |= 0x7BFF;
-					else if(half::round_style == std::round_toward_infinity)
+					if(half::round_style == std::round_toward_infinity)
 						value |= 0x7C00 - (value>>15);
 					else if(half::round_style == std::round_toward_neg_infinity)
 						value |= 0x7BFF + (value>>15);
 					else
-						value |= 0x7C00;
+						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
 				}
 				else if(exp > -11)
 				{

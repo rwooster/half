@@ -14,8 +14,8 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#define HALF_ROUND_STYLE -1
-#define HALF_ROUND_TIES_TO_EVEN 0
+#define HALF_ROUND_STYLE 1
+#define HALF_ROUND_TIES_TO_EVEN 1
 #include <half.hpp>
 
 #include <utility>
@@ -37,6 +37,11 @@
 #include <cmath>
 #if HALF_ENABLE_CPP11_HASH
 	#include <unordered_map>
+#endif
+
+#if HALF_ENABLE_CPP11_CMATH
+	#include <cfenv>
+	#pragma STDC FENV_ACCESS ON
 #endif
 
 
@@ -163,26 +168,31 @@ public:
 			return comp(static_cast<half>(f--), arg--) && comp(static_cast<half>(f), arg); });
 		unary_test("unary plus", [](half arg) { return comp(+arg, arg); });
 		unary_test("unary minus", [](half arg) { return comp(-arg, static_cast<half>(-static_cast<float>(arg))); });
-*/		binary_test("addition", [](half a, half b) -> bool { if(!comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b)))) {
+*/
+//		std::fesetround(FE_TOWARDZERO);
+/*		binary_test("addition", [](half a, half b) -> bool { if(!comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b)))) {
 			half c = a+b;
-			float d = static_cast<float>(a)+static_cast<float>(b);
+			half d = static_cast<half>(static_cast<float>(a)+static_cast<float>(b));
 			return false; } return true; });
-/*		binary_test("subtraction", [](half a, half b) -> bool { if(!comp(a-b, static_cast<half>(static_cast<float>(a)-static_cast<float>(b)))) {
+		binary_test("subtraction", [](half a, half b) -> bool { if(!comp(a-b, static_cast<half>(static_cast<float>(a)-static_cast<float>(b)))) {
 			half c = a-b;
 			half d = static_cast<half>(static_cast<float>(a)-static_cast<float>(b));
 			return false; } return true; });
 		binary_test("multiplication", [](half a, half b) -> bool { if(!comp(a*b, static_cast<half>(static_cast<float>(a)*static_cast<float>(b)))) {
 			half c = a*b;
-			float d = static_cast<float>(a)*static_cast<float>(b);
+			half d = static_cast<half>(static_cast<float>(a)*static_cast<float>(b));
 			return false; } return true; });
-		binary_test("division", [](half a, half b) { return comp(a/b, static_cast<half>(static_cast<float>(a)/static_cast<float>(b))); });
-		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
+*/		binary_test("division", [](half a, half b) -> bool { if(!comp(a/b, static_cast<half>(static_cast<float>(a)/static_cast<float>(b)))) {
+			half c = a/b;
+			half d = static_cast<half>(static_cast<float>(a)/static_cast<float>(b));
+			return false; } return true; });
+/*		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
 		binary_test("not equal", [](half a, half b) { return (a!=b) == (static_cast<float>(a)!=static_cast<float>(b)); });
 		binary_test("less", [](half a, half b) { return (a<b) == (static_cast<float>(a)<static_cast<float>(b)); });
 		binary_test("greater", [](half a, half b) { return (a>b) == (static_cast<float>(a)>static_cast<float>(b)); });
 		binary_test("less equal", [](half a, half b) { return (a<=b) == (static_cast<float>(a)<=static_cast<float>(b)); });
 		binary_test("greater equal", [](half a, half b) { return (a>=b) == (static_cast<float>(a)>=static_cast<float>(b)); });
-/*
+
 		//test basic functions
 		UNARY_MATH_TEST(abs);
 		UNARY_MATH_TEST(fabs);
