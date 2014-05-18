@@ -169,23 +169,10 @@ public:
 		unary_test("unary plus", [](half arg) { return comp(+arg, arg); });
 		unary_test("unary minus", [](half arg) { return comp(-arg, static_cast<half>(-static_cast<float>(arg))); });
 */
-//		std::fesetround(FE_TOWARDZERO);
-/*		binary_test("addition", [](half a, half b) -> bool { if(!comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b)))) {
-			half c = a+b;
-			half d = static_cast<half>(static_cast<float>(a)+static_cast<float>(b));
-			return false; } return true; });
-		binary_test("subtraction", [](half a, half b) -> bool { if(!comp(a-b, static_cast<half>(static_cast<float>(a)-static_cast<float>(b)))) {
-			half c = a-b;
-			half d = static_cast<half>(static_cast<float>(a)-static_cast<float>(b));
-			return false; } return true; });
-		binary_test("multiplication", [](half a, half b) -> bool { if(!comp(a*b, static_cast<half>(static_cast<float>(a)*static_cast<float>(b)))) {
-			half c = a*b;
-			half d = static_cast<half>(static_cast<float>(a)*static_cast<float>(b));
-			return false; } return true; });
-*/		binary_test("division", [](half a, half b) -> bool { if(!comp(a/b, static_cast<half>(static_cast<float>(a)/static_cast<float>(b)))) {
-			half c = a/b;
-			half d = static_cast<half>(static_cast<float>(a)/static_cast<float>(b));
-			return false; } return true; });
+		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b))); });
+		binary_test("subtraction", [](half a, half b) { return comp(a-b, static_cast<half>(static_cast<float>(a)-static_cast<float>(b))); });
+		binary_test("multiplication", [](half a, half b) { return comp(a*b, static_cast<half>(static_cast<float>(a)*static_cast<float>(b))); });
+		binary_test("division", [](half a, half b) { return comp(a/b, static_cast<half>(static_cast<float>(a)/static_cast<float>(b))); });
 /*		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
 		binary_test("not equal", [](half a, half b) { return (a!=b) == (static_cast<float>(a)!=static_cast<float>(b)); });
 		binary_test("less", [](half a, half b) { return (a<b) == (static_cast<float>(a)<static_cast<float>(b)); });
@@ -510,16 +497,17 @@ private:
 
 	template<typename F> bool binary_test(const std::string &name, F test)
 	{
-		auto rand = std::bind(std::uniform_int_distribution<std::size_t>(0, 63), std::default_random_engine());
+		static const unsigned int step = 64;
+		auto rand = std::bind(std::uniform_int_distribution<std::size_t>(0, step-1), std::default_random_engine());
 		unsigned int tests = 0, count = 0;
 		log_ << "testing " << name << ": ";
 		for(auto iterB1=halfs_.begin(); iterB1!=halfs_.end(); ++iterB1)
 		{
 			for(auto iterB2=halfs_.begin(); iterB2!=halfs_.end(); ++iterB2)
 			{
-				for(unsigned int i=std::min(rand(), iterB1->second.size()-1); i<iterB1->second.size(); i+=64)
+				for(unsigned int i=std::min(rand(), iterB1->second.size()-1); i<iterB1->second.size(); i+=step)
 				{
-					for(unsigned int j=std::min(rand(), iterB2->second.size()-1); j<iterB2->second.size(); j+=64)
+					for(unsigned int j=std::min(rand(), iterB2->second.size()-1); j<iterB2->second.size(); j+=step)
 					{
 						++tests;
 						count += test(iterB1->second[i], iterB2->second[j]);
@@ -545,7 +533,7 @@ private:
 	std::vector<std::string> failed_;
 	std::ostream &log_;
 };
-/*
+
 #include <chrono>
 struct timer
 {
@@ -555,10 +543,20 @@ struct timer
 private:
 	std::chrono::time_point<std::chrono::high_resolution_clock> start_;
 };
-*/
+
 
 int main(int argc, char *argv[])
 {
+/*	unsigned int sum = 0;
+	{
+		timer time;
+		for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); a+=4)
+			for(unsigned int b=0; b<std::numeric_limits<std::uint16_t>::max(); b+=4)
+				sum += h2b(b2h(a)/b2h(b));
+	}
+	std::cout << sum;
+	return 0;
+*/
 	half pi = half_cast<half,std::round_to_nearest>(3.1415926535897932384626433832795L);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;

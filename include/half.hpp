@@ -1915,13 +1915,13 @@ namespace half_float
 				{
 					my = ((absy&0x3FF)|((absy>0x3FF)<<10)) << 2;
 					int s = 0;
-					for(int i=0; i<d; ++i,my>>=1)
+					for(; d; --d,my>>=1)
 						s |= my & 1;
 					my = (my<<1) | s;
 				}
 				else
 					my = 1;
-				int m, g, s = 0;
+				int m, s = 0;
 				if(sub)
 				{
 					m = mx - my;
@@ -1945,7 +1945,7 @@ namespace half_float
 					}
 				}
 				s |= (m|(m>>1)) & 1;
-				g = (m>>2) & 1;
+				int g = (m>>2) & 1;
 				value |= ((exp-1)<<10) + (m>>3);
 				if(half::round_style == std::round_to_nearest)
 					#if HALF_ROUND_TIES_TO_EVEN
@@ -2010,7 +2010,7 @@ namespace half_float
 					{
 						m >>= 10;
 						s |= g;
-						for(int i=exp; i<0; ++i,m>>=1)
+						for(; exp; ++exp,m>>=1)
 							s |= m & 1;
 						g = m & 1;
 						value |= m >> 1;
@@ -2049,19 +2049,14 @@ namespace half_float
 					return half(binary, (absx==absy) ? 0x7FFF : value);
 				int exp = 15;
 				for(; absx<0x400; absx<<=1,--exp) ;
-				for(; absy<0x400; absy<<=1,--exp) ;
-				exp += (absx>>10) - (absy>>10);
+				for(; absy<0x400; absy<<=1,++exp) ;
 				long mx = ((absx&0x3FF)|0x400L) << 1, my = ((absy&0x3FF)|0x400L) << 1;
-
-				std::ldiv_t div = std::div(mx<<11, my);
-				int m = div.quot;
-
 				int i = mx < my;
-				m <<= i;
-				exp -= i;
-				int g = m & 1, s = div.rem != 0;
+				mx <<= i;
+				exp += (absx>>10) - (absy>>10) - i;
+				std::ldiv_t div = std::div(mx<<11, my);
+				int m = div.quot, g = m & 1, s = div.rem != 0;
 				m >>= 1;
-
 				if(exp > 30)
 				{
 					if(half::round_style == std::round_toward_infinity)
@@ -2078,7 +2073,7 @@ namespace half_float
 					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
 					{
 						s |= g;
-						for(int i=exp; i<0; ++i,m>>=1)
+						for(; exp; ++exp,m>>=1)
 							s |= m & 1;
 						g = m & 1;
 						value |= m >> 1;
