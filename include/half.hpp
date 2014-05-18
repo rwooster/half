@@ -1039,30 +1039,6 @@ namespace half_float
 		/// Wrapper implementing unspecialized half-precision functions.
 		struct functions
 		{
-			/// Addition implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision sum stored in single-precision
-			static expr plus(float x, float y) { return expr(x+y); }
-
-			/// Subtraction implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision difference stored in single-precision
-			static expr minus(float x, float y) { return expr(x-y); }
-
-			/// Multiplication implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision product stored in single-precision
-			static expr multiplies(float x, float y) { return expr(x*y); }
-
-			/// Division implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision quotient stored in single-precision
-			static expr divides(float x, float y) { return expr(x/y); }
-
 			/// Output implementation.
 			/// \param out stream to write to
 			/// \param arg value to write
@@ -1257,11 +1233,6 @@ namespace half_float
 				return expr(static_cast<float>(std::log(static_cast<double>(arg))*1.4426950408889634073599246810019));
 			#endif
 			}
-
-			/// Square root implementation.
-			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr sqrt(float arg) { return expr(std::sqrt(arg)); }
 
 			/// Cubic root implementation.
 			/// \param arg function argument
@@ -1817,11 +1788,62 @@ namespace half_float
 			/// \param arg function argument
 			/// \return absolute value
 			static half fabs(half arg) { return half(binary, arg.data_&0x7FFF); }
+
+			/// Square root implementation.
+			/// \param arg function argument
+			/// \return square root of argument
+			static half sqrt(half arg)
+			{
+				if(arg.data_ & 0x8000 && arg.data_ != 0x8000)
+					arg.data_ |= 0x7FFF;
+				int abs = arg.data_ & 0x7FFF;
+				if(!abs || abs >= 0x7C00)
+					return arg;
+				int exp = 15;
+				for(; abs<0x400; abs<<=1,--exp) ;
+				exp += abs >> 10;
+				long m = ((abs&0x3FF)|0x400L) << ((exp&1)+1);
+				exp /= 2;
+/*
+				std::ldiv_t div = std::div(mx<<11, my);
+				int m = div.quot, g = m & 1, s = div.rem != 0;
+				m >>= 1;
+*/
+				if(exp > -11)
+				{
+					uint16 value;
+					if(exp > 0)
+						value = (exp<<10) | (m&0x3FF);
+					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						s |= g;
+						for(; exp; ++exp,m>>=1)
+							s |= m & 1;
+						g = m & 1;
+						value |= m >> 1;
+					}
+					else
+						value = m >> (1-exp);
+					if(half::round_style == std::round_to_nearest)
+						#if HALF_ROUND_TIES_TO_EVEN
+							value += g & (s|value);
+						#else
+							value += g;
+						#endif
+					else if(half::round_style == std::round_toward_infinity)
+						value += ~(value>>15) & (g|s);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value += (value>>15) & (g|s);
+					return half(binary, value);
+				}
+				return half(binary, half::round_style==std::round_toward_infinity);
+			}
 		};
 		template<> struct unary_specialized<expr>
 		{
 			static HALF_CONSTEXPR expr negate(float arg) { return expr(-arg); }
 			static expr fabs(float arg) { return expr(std::fabs(arg)); }
+			static expr sqrt(float arg) { return expr(std::sqrt(arg)); }
 		};
 
 		/// Wrapper for binary half-precision functions needing specialization for individual argument types.
@@ -1908,8 +1930,7 @@ namespace half_float
 				uint16 value = ((sub && absy>absx) ? y.data_ : x.data_) & 0x8000;
 				if(absy > absx)
 					std::swap(absx, absy);
-				int exp = (absx>>10) + (absx<=0x3FF);
-				int d = exp - (absy>>10) - (absy<=0x3FF);
+				int exp = (absx>>10) + (absx<=0x3FF), d = exp - (absy>>10) - (absy<=0x3FF);
 				int mx = ((absx&0x3FF)|((absx>0x3FF)<<10)) << 3, my;
 				if(d < 13)
 				{
@@ -1979,11 +2000,10 @@ namespace half_float
 				int exp = -15;
 				for(; absx<0x400; absx<<=1,--exp) ;
 				for(; absy<0x400; absy<<=1,--exp) ;
-				exp += (absx>>10) + (absy>>10);
 				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
 				int i = m >> 21, s = m & i, g;
 				m >>= i;
-				exp += i;
+				exp += (absx>>10) + (absy>>10) + i;
 				if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
 				{
 					s |= (m|(m>>1)) & 0xFF;
@@ -2436,9 +2456,9 @@ namespace half_float
 		/// Square root.
 		/// \param arg function argument
 		/// \return square root of \a arg
-//		template<typename T> typename enable<expr,T>::type sqrt(T arg) { return functions::sqrt(arg); }
-		inline expr sqrt(half arg) { return functions::sqrt(arg); }
-		inline expr sqrt(expr arg) { return functions::sqrt(arg); }
+//		template<typename T> typename enable<T,T>::type sqrt(T arg) { return unary_specialized<T>::sqrt(arg); }
+		inline half sqrt(half arg) { return unary_specialized<half>::sqrt(arg); }
+		inline expr sqrt(expr arg) { return unary_specialized<expr>::sqrt(arg); }
 
 		/// Cubic root.
 		/// \param arg function argument
