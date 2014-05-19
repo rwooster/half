@@ -308,51 +308,6 @@ namespace half_float
 		/// Tag for binary construction.
 		HALF_CONSTEXPR_CONST binary_t binary = binary_t();
 
-		/// Temporary half-precision expression.
-		/// This class represents a half-precision expression which just stores a single-precision value internally.
-		struct expr
-		{
-			/// Conversion constructor.
-			/// \param f single-precision value to convert
-			explicit HALF_CONSTEXPR expr(float f) : value_(f) {}
-
-			/// Conversion to single-precision.
-			/// \return single precision value representing expression value
-			HALF_CONSTEXPR operator float() const { return value_; }
-
-		private:
-			/// Internal expression value stored in single-precision.
-			float value_;
-		};
-
-		/// SFINAE helper for generic half-precision functions.
-		/// This class template has to be specialized for each valid combination of argument types to provide a corresponding 
-		/// `type` member equivalent to \a T.
-		/// \tparam T type to return
-		template<typename T,typename,typename=void,typename=void> struct enable {};
-		template<typename T> struct enable<T,half,void,void> { typedef T type; };
-		template<typename T> struct enable<T,expr,void,void> { typedef T type; };
-		template<typename T> struct enable<T,half,half,void> { typedef T type; };
-		template<typename T> struct enable<T,half,expr,void> { typedef T type; };
-		template<typename T> struct enable<T,expr,half,void> { typedef T type; };
-		template<typename T> struct enable<T,expr,expr,void> { typedef T type; };
-		template<typename T> struct enable<T,half,half,half> { typedef T type; };
-		template<typename T> struct enable<T,half,half,expr> { typedef T type; };
-		template<typename T> struct enable<T,half,expr,half> { typedef T type; };
-		template<typename T> struct enable<T,half,expr,expr> { typedef T type; };
-		template<typename T> struct enable<T,expr,half,half> { typedef T type; };
-		template<typename T> struct enable<T,expr,half,expr> { typedef T type; };
-		template<typename T> struct enable<T,expr,expr,half> { typedef T type; };
-		template<typename T> struct enable<T,expr,expr,expr> { typedef T type; };
-
-		/// Return type for specialized generic 2-argument half-precision functions.
-		/// This class template has to be specialized for each valid combination of argument types to provide a corresponding 
-		/// `type` member denoting the appropriate return type.
-		/// \tparam T first argument type
-		/// \tparam U first argument type
-		template<typename T,typename U> struct result : enable<expr,T,U> {};
-		template<> struct result<half,half> { typedef half type; };
-
 		/// \name Classification helpers
 		/// \{
 
@@ -878,8 +833,6 @@ namespace half_float
 		/// \}
 
 		struct functions;
-		template<typename> struct unary_specialized;
-		template<typename,typename> struct binary_specialized;
 		template<typename,typename,std::float_round_style> struct half_caster;
 	}
 
@@ -906,8 +859,6 @@ namespace half_float
 	class half
 	{
 		friend struct detail::functions;
-		friend struct detail::unary_specialized<half>;
-		friend struct detail::binary_specialized<half,half>;
 		template<typename,typename,std::float_round_style> friend struct detail::half_caster;
 		friend class std::numeric_limits<half>;
 	#if HALF_ENABLE_CPP11_HASH
@@ -920,11 +871,6 @@ namespace half_float
 		/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
 		HALF_CONSTEXPR half() /*HALF_NOEXCEPT*/ : data_() {}
 
-		/// Copy constructor.
-		/// \tparam T type of concrete half expression
-		/// \param rhs half expression to copy from
-		half(detail::expr rhs) : data_(detail::float2half<round_style>(rhs)) {}
-
 		/// Conversion constructor.
 		/// \param rhs float to convert
 		explicit half(float rhs) : data_(detail::float2half<round_style>(rhs)) {}
@@ -933,35 +879,29 @@ namespace half_float
 		/// \return single precision value representing expression value
 		operator float() const { return detail::half2float(data_); }
 
-		/// Assignment operator.
-		/// \tparam T type of concrete half expression
-		/// \param rhs half expression to copy from
-		/// \return reference to this half
-		half& operator=(detail::expr rhs) { return *this = static_cast<float>(rhs); }
-
 		/// Arithmetic assignment.
 		/// \tparam T type of concrete half expression
 		/// \param rhs half expression to add
 		/// \return reference to this half
-		template<typename T> typename detail::enable<half&,T>::type operator+=(T rhs) { return *this += static_cast<float>(rhs); }
+		half& operator+=(half rhs) { return *this += static_cast<float>(rhs); }
 
 		/// Arithmetic assignment.
 		/// \tparam T type of concrete half expression
 		/// \param rhs half expression to subtract
 		/// \return reference to this half
-		template<typename T> typename detail::enable<half&,T>::type operator-=(T rhs) { return *this -= static_cast<float>(rhs); }
+		half& operator-=(half rhs) { return *this -= static_cast<float>(rhs); }
 
 		/// Arithmetic assignment.
 		/// \tparam T type of concrete half expression
 		/// \param rhs half expression to multiply with
 		/// \return reference to this half
-		template<typename T> typename detail::enable<half&,T>::type operator*=(T rhs) { return *this *= static_cast<float>(rhs); }
+		half& operator*=(half rhs) { return *this *= static_cast<float>(rhs); }
 
 		/// Arithmetic assignment.
 		/// \tparam T type of concrete half expression
 		/// \param rhs half expression to divide by
 		/// \return reference to this half
-		template<typename T> typename detail::enable<half&,T>::type operator/=(T rhs) { return *this /= static_cast<float>(rhs); }
+		half& operator/=(half rhs) { return *this /= static_cast<float>(rhs); }
 
 		/// Assignment operator.
 		/// \param rhs single-precision value to copy from
@@ -1039,6 +979,218 @@ namespace half_float
 		/// Wrapper implementing unspecialized half-precision functions.
 		struct functions
 		{
+			static half plus(half x, half y)
+			{
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx > 0x7C00)
+					return x;
+				if(absy > 0x7C00)
+					return y;
+				bool sub = (x.data_^y.data_) >> 15;
+				if(absx == 0x7C00)
+					return (sub && absy==0x7C00) ? half(binary, 0x7FFF) : x;
+				if(absy == 0x7C00)
+					return y;
+				if(!absx)
+					return y;
+				if(!absy)
+					return x;
+				uint16 value = ((sub && absy>absx) ? y.data_ : x.data_) & 0x8000;
+				if(absy > absx)
+					std::swap(absx, absy);
+				int exp = (absx>>10) + (absx<=0x3FF), d = exp - (absy>>10) - (absy<=0x3FF);
+				int mx = ((absx&0x3FF)|((absx>0x3FF)<<10)) << 3, my;
+				if(d < 13)
+				{
+					my = ((absy&0x3FF)|((absy>0x3FF)<<10)) << 2;
+					int s = 0;
+					for(; d; --d,my>>=1)
+						s |= my & 1;
+					my = (my<<1) | s;
+				}
+				else
+					my = 1;
+				int m, s = 0;
+				if(sub)
+				{
+					m = mx - my;
+					for(; m<0x2000 && exp>1; m<<=1,--exp) ;
+				}
+				else
+				{
+					m = mx + my;
+					if(m > 0x3FFF)
+					{
+						s = m & 1;
+						m >>= 1;
+						if(++exp > 30)
+						{
+							if(half::round_style == std::round_toward_infinity)
+								return half(binary, value|0x7C00-(value>>15));
+							else if(half::round_style == std::round_toward_neg_infinity)
+								return half(binary, value|0x7BFF+(value>>15));
+							return half(binary, value|0x7BFF+(half::round_style!=std::round_toward_zero));
+						}
+					}
+				}
+				s |= (m|(m>>1)) & 1;
+				int g = (m>>2) & 1;
+				value |= ((exp-1)<<10) + (m>>3);
+				if(half::round_style == std::round_to_nearest)
+					#if HALF_ROUND_TIES_TO_EVEN
+						value += g & (s|value);
+					#else
+						value += g;
+					#endif
+				else if(half::round_style == std::round_toward_infinity)
+					value += ~(value>>15) & (g|s);
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += (value>>15) & (g|s);
+				return half(binary, value);
+			}
+
+			static half minus(half x, half y) { return plus(x, half(binary, y.data_^0x8000)); }
+
+			static half multiplies(half x, half y)
+			{
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx > 0x7C00)
+					return x;
+				if(absy > 0x7C00)
+					return y;
+				uint16 value = (x.data_^y.data_) & 0x8000;
+				if(absx == 0x7C00)
+					return half(binary, !absy ? 0x7FFF : (value|0x7C00));
+				if(absy == 0x7C00)
+					return half(binary, !absx ? 0x7FFF : (value|0x7C00));
+				if(!absx || !absy)
+					return half(binary, value);
+				int exp = -15;
+				for(; absx<0x400; absx<<=1,--exp) ;
+				for(; absy<0x400; absy<<=1,--exp) ;
+				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
+				int i = m >> 21, s = m & i, g;
+				m >>= i;
+				exp += (absx>>10) + (absy>>10) + i;
+				if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+				{
+					s |= (m|(m>>1)) & 0xFF;
+					s |= s >> 4;
+					s |= s >> 2;
+					s |= s >> 1;
+					s &= 1;
+					g = (m>>9) & 1;
+				}
+				if(exp > 30)
+				{
+					if(half::round_style == std::round_toward_infinity)
+						value |= 0x7C00 - (value>>15);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value |= 0x7BFF + (value>>15);
+					else
+						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
+				}
+				else if(exp > -11)
+				{
+					if(exp > 0)
+						value |= (exp<<10) | ((m>>10)&0x3FF);
+					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						m >>= 10;
+						s |= g;
+						for(; exp; ++exp,m>>=1)
+							s |= m & 1;
+						g = m & 1;
+						value |= m >> 1;
+					}
+					else
+						value |= m >> (11-exp);
+					if(half::round_style == std::round_to_nearest)
+						#if HALF_ROUND_TIES_TO_EVEN
+							value += g & (s|value);
+						#else
+							value += g;
+						#endif
+					else if(half::round_style == std::round_toward_infinity)
+						value += ~(value>>15) & (g|s);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value += (value>>15) & (g|s);
+				}
+				else if(half::round_style == std::round_toward_infinity)
+					value -= (value>>15) - 1;
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += value >> 15;
+				return half(binary, value);
+			}
+
+			static half divides(half x, half y)
+			{
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx > 0x7C00)
+					return x;
+				if(absy > 0x7C00)
+					return y;
+				uint16 value = (x.data_^y.data_) & 0x8000;
+				if(absx == 0x7C00 || !absy)
+					return half(binary, (absx==absy) ? 0x7FFF : (value|0x7C00));
+				if(absy == 0x7C00 || !absx)
+					return half(binary, (absx==absy) ? 0x7FFF : value);
+				int exp = 15;
+				for(; absx<0x400; absx<<=1,--exp) ;
+				for(; absy<0x400; absy<<=1,++exp) ;
+				long mx = ((absx&0x3FF)|0x400L) << 1, my = ((absy&0x3FF)|0x400L) << 1;
+				int i = mx < my;
+				mx <<= i;
+				exp += (absx>>10) - (absy>>10) - i;
+				std::ldiv_t div = std::div(mx<<11, my);
+				int m = div.quot, g = m & 1, s = div.rem != 0;
+				m >>= 1;
+				if(exp > 30)
+				{
+					if(half::round_style == std::round_toward_infinity)
+						value |= 0x7C00 - (value>>15);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value |= 0x7BFF + (value>>15);
+					else
+						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
+				}
+				else if(exp > -11)
+				{
+					if(exp > 0)
+						value |= (exp<<10) | (m&0x3FF);
+					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						s |= g;
+						for(; exp; ++exp,m>>=1)
+							s |= m & 1;
+						g = m & 1;
+						value |= m >> 1;
+					}
+					else
+						value |= m >> (1-exp);
+					if(half::round_style == std::round_to_nearest)
+						#if HALF_ROUND_TIES_TO_EVEN
+							value += g & (s|value);
+						#else
+							value += g;
+						#endif
+					else if(half::round_style == std::round_toward_infinity)
+						value += ~(value>>15) & (g|s);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value += (value>>15) & (g|s);
+				}
+				else if(half::round_style == std::round_toward_infinity)
+					value -= (value>>15) - 1;
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += value >> 15;
+				return half(binary, value);
+			}
+
+			/// Negation implementation.
+			/// \param arg value to negate
+			/// \return negated value
+			static HALF_CONSTEXPR half negate(half arg) { return half(binary, arg.data_^0x8000); }
+
 			/// Output implementation.
 			/// \param out stream to write to
 			/// \param arg value to write
@@ -1057,30 +1209,35 @@ namespace half_float
 				return in;
 			}
 
+			/// Absolute value implementation.
+			/// \param arg function argument
+			/// \return absolute value
+			static half fabs(half arg) { return half(binary, arg.data_&0x7FFF); }
+
 			/// Modulo implementation.
 			/// \param x first operand
 			/// \param y second operand
-			/// \return Half-precision division remainder stored in single-precision
-			static expr fmod(float x, float y) { return expr(std::fmod(x, y)); }
+			/// \return Half-precision division remainder
+			static half fmod(float x, float y) { return half(std::fmod(x, y)); }
 
 			/// Remainder implementation.
 			/// \param x first operand
 			/// \param y second operand
-			/// \return Half-precision division remainder stored in single-precision
-			static expr remainder(float x, float y)
+			/// \return Half-precision division remainder
+			static half remainder(float x, float y)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
 				return expr(std::remainder(x, y));
 			#else
 				if(builtin_isnan(x) || builtin_isnan(y))
-					return expr(std::numeric_limits<float>::quiet_NaN());
+					return half(binary, 0x7FFF);
 				float ax = std::fabs(x), ay = std::fabs(y);
 				if(ax >= 65536.0f || ay < std::ldexp(1.0f, -24))
-					return expr(std::numeric_limits<float>::quiet_NaN());
+					return half(binary, 0x7FFF);
 				if(ay >= 65536.0f)
-					return expr(x);
+					return half(x);
 				if(ax == ay)
-					return expr(builtin_signbit(x) ? -0.0f : 0.0f);
+					return half(builtin_signbit(x) ? -0.0f : 0.0f);
 				ax = std::fmod(ax, ay+ay);
 				float y2 = 0.5f * ay;
 				if(ax > y2)
@@ -1089,7 +1246,7 @@ namespace half_float
 					if(ax >= y2)
 						ax -= ay;
 				}
-				return expr(builtin_signbit(x) ? -ax : ax);
+				return half(builtin_signbit(x) ? -ax : ax);
 			#endif
 			}
 
@@ -1097,22 +1254,22 @@ namespace half_float
 			/// \param x first operand
 			/// \param y second operand
 			/// \param quo address to store quotient bits at
-			/// \return Half-precision division remainder stored in single-precision
-			static expr remquo(float x, float y, int *quo)
+			/// \return Half-precision division remainder
+			static half remquo(float x, float y, int *quo)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
 				return expr(std::remquo(x, y, quo));
 			#else
 				if(builtin_isnan(x) || builtin_isnan(y))
-					return expr(std::numeric_limits<float>::quiet_NaN());
+					return half(std::numeric_limits<float>::quiet_NaN());
 				bool sign = builtin_signbit(x), qsign = static_cast<bool>(sign^builtin_signbit(y));
 				float ax = std::fabs(x), ay = std::fabs(y);
 				if(ax >= 65536.0f || ay < std::ldexp(1.0f, -24))
-					return expr(std::numeric_limits<float>::quiet_NaN());
+					return half(std::numeric_limits<float>::quiet_NaN());
 				if(ay >= 65536.0f)
-					return expr(x);
+					return half(x);
 				if(ax == ay)
-					return *quo = qsign ? -1 : 1, expr(sign ? -0.0f : 0.0f);
+					return *quo = qsign ? -1 : 1, half(sign ? -0.0f : 0.0f);
 				ax = std::fmod(ax, 8.0f*ay);
 				int cquo = 0;
 				if(ax >= 4.0f * ay)
@@ -1136,20 +1293,40 @@ namespace half_float
 						++cquo;
 					}
 				}
-				return *quo = qsign ? -cquo : cquo, expr(sign ? -ax : ax);
+				return *quo = qsign ? -cquo : cquo, half(sign ? -ax : ax);
 			#endif
+			}
+
+			static half fmin(half x, half y)
+			{
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				if(xabs > 0x7C00)
+					return y;
+				if(yabs > 0x7C00)
+					return x;
+				return (((xabs==x.data_) ? xabs : -xabs) > ((yabs==y.data_) ? yabs : -yabs)) ? y : x;
+			}
+
+			static half fmax(half x, half y)
+			{
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				if(xabs > 0x7C00)
+					return y;
+				if(yabs > 0x7C00)
+					return x;
+				return (((xabs==x.data_) ? xabs : -xabs) < ((yabs==y.data_) ? yabs : -yabs)) ? y : x;
 			}
 
 			/// Positive difference implementation.
 			/// \param x first operand
 			/// \param y second operand
-			/// \return Positive difference stored in single-precision
-			static expr fdim(float x, float y)
+			/// \return Positive difference
+			static half fdim(float x, float y)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::fdim(x, y));
+				return half(std::fdim(x, y));
 			#else
-				return expr((x<=y) ? 0.0f : (x-y));
+				return half((x<=y) ? 0.0f : (x-y));
 			#endif
 			}
 
@@ -1157,13 +1334,13 @@ namespace half_float
 			/// \param x first operand
 			/// \param y second operand
 			/// \param z third operand
-			/// \return \a x * \a y + \a z stored in single-precision
-			static expr fma(float x, float y, float z)
+			/// \return \a x * \a y + \a z
+			static half fma(float x, float y, float z)
 			{
 			#if HALF_ENABLE_CPP11_CMATH && defined(FP_FAST_FMAF)
-				return expr(std::fma(x, y, z));
+				return half(std::fma(x, y, z));
 			#else
-				return expr(x*y+z);
+				return half(x*y+z);
 			#endif
 			}
 
@@ -1173,78 +1350,127 @@ namespace half_float
 
 			/// Exponential implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr exp(float arg) { return expr(std::exp(arg)); }
+			/// \return function value
+			static half exp(float arg) { return half(std::exp(arg)); }
 
 			/// Exponential implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr expm1(float arg)
+			/// \return function value
+			static half expm1(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::expm1(arg));
+				return half(std::expm1(arg));
 			#else
-				return expr(static_cast<float>(std::exp(static_cast<double>(arg))-1.0));
+				return half(static_cast<float>(std::exp(static_cast<double>(arg))-1.0));
 			#endif
 			}
 
 			/// Binary exponential implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr exp2(float arg)
+			/// \return function value
+			static half exp2(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::exp2(arg));
+				return half(std::exp2(arg));
 			#else
-				return expr(static_cast<float>(std::exp(arg*0.69314718055994530941723212145818)));
+				return half(static_cast<float>(std::exp(arg*0.69314718055994530941723212145818)));
 			#endif
 			}
 
 			/// Logarithm implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr log(float arg) { return expr(std::log(arg)); }
+			/// \return function value
+			static half log(float arg) { return half(std::log(arg)); }
 
 			/// Common logarithm implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr log10(float arg) { return expr(std::log10(arg)); }
+			/// \return function value
+			static half log10(float arg) { return half(std::log10(arg)); }
 
 			/// Logarithm implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr log1p(float arg)
+			/// \return function value
+			static half log1p(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::log1p(arg));
+				return half(std::log1p(arg));
 			#else
-				return expr(static_cast<float>(std::log(1.0+arg)));
+				return half(static_cast<float>(std::log(1.0+arg)));
 			#endif
 			}
 
 			/// Binary logarithm implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr log2(float arg)
+			/// \return function value
+			static half log2(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::log2(arg));
+				return half(std::log2(arg));
 			#else
-				return expr(static_cast<float>(std::log(static_cast<double>(arg))*1.4426950408889634073599246810019));
+				return half(static_cast<float>(std::log(static_cast<double>(arg))*1.4426950408889634073599246810019));
 			#endif
+			}
+
+			/// Square root implementation.
+			/// \param arg function argument
+			/// \return square root of argument
+			static half sqrt(half arg)
+			{
+				if(arg.data_ & 0x8000 && arg.data_ != 0x8000)
+					arg.data_ |= 0x7FFF;
+				int abs = arg.data_ & 0x7FFF;
+				if(!abs || abs >= 0x7C00)
+					return arg;
+				int exp = 15;
+				for(; abs<0x400; abs<<=1,--exp) ;
+				exp += abs >> 10;
+				long m = ((abs&0x3FF)|0x400L) << ((exp&1)+1);
+				exp /= 2;
+
+				int g = m & 1, s = 0;
+				m >>= 1;
+
+				if(exp > -11)
+				{
+					uint16 value;
+					if(exp > 0)
+						value = (exp<<10) | (m&0x3FF);
+					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						s |= g;
+						for(; exp; ++exp,m>>=1)
+							s |= m & 1;
+						g = m & 1;
+						value |= m >> 1;
+					}
+					else
+						value = m >> (1-exp);
+					if(half::round_style == std::round_to_nearest)
+						#if HALF_ROUND_TIES_TO_EVEN
+							value += g & (s|value);
+						#else
+							value += g;
+						#endif
+					else if(half::round_style == std::round_toward_infinity)
+						value += ~(value>>15) & (g|s);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value += (value>>15) & (g|s);
+					return half(binary, value);
+				}
+				return half(binary, half::round_style==std::round_toward_infinity);
 			}
 
 			/// Cubic root implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr cbrt(float arg)
+			/// \return function value
+			static half cbrt(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::cbrt(arg));
+				return half(std::cbrt(arg));
 			#else
 				if(builtin_isnan(arg) || builtin_isinf(arg))
-					return expr(arg);
-				return expr(builtin_signbit(arg) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
+					return half(arg);
+				return half(builtin_signbit(arg) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
 					static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
 			#endif
 			}
@@ -1252,13 +1478,13 @@ namespace half_float
 			/// Hypotenuse implementation.
 			/// \param x first argument
 			/// \param y second argument
-			/// \return function value stored in single-preicision
-			static expr hypot(float x, float y)
+			/// \return function value
+			static half hypot(float x, float y)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::hypot(x, y));
+				return half(std::hypot(x, y));
 			#else
-				return expr((builtin_isinf(x) || builtin_isinf(y)) ? std::numeric_limits<float>::infinity() : 
+				return half((builtin_isinf(x) || builtin_isinf(y)) ? std::numeric_limits<float>::infinity() : 
 					static_cast<float>(std::sqrt(static_cast<double>(x)*x+static_cast<double>(y)*y)));
 			#endif
 			}
@@ -1266,163 +1492,163 @@ namespace half_float
 			/// Power implementation.
 			/// \param base value to exponentiate
 			/// \param exp power to expontiate to
-			/// \return function value stored in single-preicision
-			static expr pow(float base, float exp) { return expr(std::pow(base, exp)); }
+			/// \return function value
+			static half pow(float base, float exp) { return half(std::pow(base, exp)); }
 
 			/// Sine implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr sin(float arg) { return expr(std::sin(arg)); }
+			/// \return function value
+			static half sin(float arg) { return half(std::sin(arg)); }
 
 			/// Cosine implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr cos(float arg) { return expr(std::cos(arg)); }
+			/// \return function value
+			static half cos(float arg) { return half(std::cos(arg)); }
 
 			/// Tan implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr tan(float arg) { return expr(std::tan(arg)); }
+			/// \return function value
+			static half tan(float arg) { return half(std::tan(arg)); }
 
 			/// Arc sine implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr asin(float arg) { return expr(std::asin(arg)); }
+			/// \return function value
+			static half asin(float arg) { return half(std::asin(arg)); }
 
 			/// Arc cosine implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr acos(float arg) { return expr(std::acos(arg)); }
+			/// \return function value
+			static half acos(float arg) { return half(std::acos(arg)); }
 
 			/// Arc tangent implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr atan(float arg) { return expr(std::atan(arg)); }
+			/// \return function value
+			static half atan(float arg) { return half(std::atan(arg)); }
 
 			/// Arc tangent implementation.
 			/// \param x first argument
 			/// \param y second argument
-			/// \return function value stored in single-preicision
-			static expr atan2(float x, float y) { return expr(std::atan2(x, y)); }
+			/// \return function value
+			static half atan2(float x, float y) { return half(std::atan2(x, y)); }
 
 			/// Hyperbolic sine implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr sinh(float arg) { return expr(std::sinh(arg)); }
+			/// \return function value
+			static half sinh(float arg) { return half(std::sinh(arg)); }
 
 			/// Hyperbolic cosine implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr cosh(float arg) { return expr(std::cosh(arg)); }
+			/// \return function value
+			static half cosh(float arg) { return half(std::cosh(arg)); }
 
 			/// Hyperbolic tangent implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr tanh(float arg) { return expr(std::tanh(arg)); }
+			/// \return function value
+			static half tanh(float arg) { return half(std::tanh(arg)); }
 
 			/// Hyperbolic area sine implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr asinh(float arg)
+			/// \return function value
+			static half asinh(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::asinh(arg));
+				return half(std::asinh(arg));
 			#else
-				return expr((arg==-std::numeric_limits<float>::infinity()) ? arg : static_cast<float>(std::log(arg+std::sqrt(arg*arg+1.0))));
+				return half((arg==-std::numeric_limits<float>::infinity()) ? arg : static_cast<float>(std::log(arg+std::sqrt(arg*arg+1.0))));
 			#endif
 			}
 
 			/// Hyperbolic area cosine implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr acosh(float arg)
+			/// \return function value
+			static half acosh(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::acosh(arg));
+				return half(std::acosh(arg));
 			#else
-				return expr((arg<-1.0f) ? std::numeric_limits<float>::quiet_NaN() : static_cast<float>(std::log(arg+std::sqrt(arg*arg-1.0))));
+				return half((arg<-1.0f) ? std::numeric_limits<float>::quiet_NaN() : static_cast<float>(std::log(arg+std::sqrt(arg*arg-1.0))));
 			#endif
 			}
 
 			/// Hyperbolic area tangent implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr atanh(float arg)
+			/// \return function value
+			static half atanh(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::atanh(arg));
+				return half(std::atanh(arg));
 			#else
-				return expr(static_cast<float>(0.5*std::log((1.0+arg)/(1.0-arg))));
+				return half(static_cast<float>(0.5*std::log((1.0+arg)/(1.0-arg))));
 			#endif
 			}
 
 			/// Error function implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr erf(float arg)
+			/// \return function value
+			static half erf(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::erf(arg));
+				return half(std::erf(arg));
 			#else
-				return expr(static_cast<float>(erf(static_cast<double>(arg))));
+				return half(static_cast<float>(erf(static_cast<double>(arg))));
 			#endif
 			}
 
 			/// Complementary implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr erfc(float arg)
+			/// \return function value
+			static half erfc(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::erfc(arg));
+				return half(std::erfc(arg));
 			#else
-				return expr(static_cast<float>(1.0-erf(static_cast<double>(arg))));
+				return half(static_cast<float>(1.0-erf(static_cast<double>(arg))));
 			#endif
 			}
 
 			/// Gamma logarithm implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr lgamma(float arg)
+			/// \return function value
+			static half lgamma(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::lgamma(arg));
+				return half(std::lgamma(arg));
 			#else
 				if(builtin_isinf(arg))
-					return expr(std::numeric_limits<float>::infinity());
+					return half(std::numeric_limits<float>::infinity());
 				if(arg < 0.0f)
 				{
 					float i, f = std::modf(-arg, &i);
 					if(f == 0.0f)
-						return expr(std::numeric_limits<float>::infinity());
-					return expr(static_cast<float>(1.1447298858494001741434273513531-
+						return half(std::numeric_limits<float>::infinity());
+					return half(static_cast<float>(1.1447298858494001741434273513531-
 						std::log(std::abs(std::sin(3.1415926535897932384626433832795*f)))-lgamma(1.0-arg)));
 				}
-				return expr(static_cast<float>(lgamma(static_cast<double>(arg))));
+				return half(static_cast<float>(lgamma(static_cast<double>(arg))));
 			#endif
 			}
 
 			/// Gamma implementation.
 			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr tgamma(float arg)
+			/// \return function value
+			static half tgamma(float arg)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::tgamma(arg));
+				return half(std::tgamma(arg));
 			#else
 				if(arg == 0.0f)
-					return builtin_signbit(arg) ? expr(-std::numeric_limits<float>::infinity()) : expr(std::numeric_limits<float>::infinity());
+					return builtin_signbit(arg) ? half(-std::numeric_limits<float>::infinity()) : half(std::numeric_limits<float>::infinity());
 				if(arg < 0.0f)
 				{
 					float i, f = std::modf(-arg, &i);
 					if(f == 0.0f)
-						return expr(std::numeric_limits<float>::quiet_NaN());
+						return half(std::numeric_limits<float>::quiet_NaN());
 					double value = 3.1415926535897932384626433832795 / (std::sin(3.1415926535897932384626433832795*f)*std::exp(lgamma(1.0-arg)));
-					return expr(static_cast<float>((std::fmod(i, 2.0f)==0.0f) ? -value : value));
+					return half(static_cast<float>((std::fmod(i, 2.0f)==0.0f) ? -value : value));
 				}
 				if(builtin_isinf(arg))
-					return expr(arg);
-				return expr(static_cast<float>(std::exp(lgamma(static_cast<double>(arg)))));
+					return half(arg);
+				return half(static_cast<float>(std::exp(lgamma(static_cast<double>(arg)))));
 			#endif
 			}
 
@@ -1784,370 +2010,6 @@ namespace half_float
 			}
 		};
 
-		/// Wrapper for unary half-precision functions needing specialization for individual argument types.
-		/// \tparam T argument type
-		template<typename T> struct unary_specialized
-		{
-			/// Negation implementation.
-			/// \param arg value to negate
-			/// \return negated value
-			static HALF_CONSTEXPR half negate(half arg) { return half(binary, arg.data_^0x8000); }
-
-			/// Absolute value implementation.
-			/// \param arg function argument
-			/// \return absolute value
-			static half fabs(half arg) { return half(binary, arg.data_&0x7FFF); }
-
-			/// Square root implementation.
-			/// \param arg function argument
-			/// \return square root of argument
-			static half sqrt(half arg)
-			{
-				if(arg.data_ & 0x8000 && arg.data_ != 0x8000)
-					arg.data_ |= 0x7FFF;
-				int abs = arg.data_ & 0x7FFF;
-				if(!abs || abs >= 0x7C00)
-					return arg;
-				int exp = 15;
-				for(; abs<0x400; abs<<=1,--exp) ;
-				exp += abs >> 10;
-				long m = ((abs&0x3FF)|0x400L) << ((exp&1)+1);
-				exp /= 2;
-/*
-				std::ldiv_t div = std::div(mx<<11, my);
-				int m = div.quot, g = m & 1, s = div.rem != 0;
-				m >>= 1;
-*/
-				if(exp > -11)
-				{
-					uint16 value;
-					if(exp > 0)
-						value = (exp<<10) | (m&0x3FF);
-					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-					{
-						s |= g;
-						for(; exp; ++exp,m>>=1)
-							s |= m & 1;
-						g = m & 1;
-						value |= m >> 1;
-					}
-					else
-						value = m >> (1-exp);
-					if(half::round_style == std::round_to_nearest)
-						#if HALF_ROUND_TIES_TO_EVEN
-							value += g & (s|value);
-						#else
-							value += g;
-						#endif
-					else if(half::round_style == std::round_toward_infinity)
-						value += ~(value>>15) & (g|s);
-					else if(half::round_style == std::round_toward_neg_infinity)
-						value += (value>>15) & (g|s);
-					return half(binary, value);
-				}
-				return half(binary, half::round_style==std::round_toward_infinity);
-			}
-		};
-		template<> struct unary_specialized<expr>
-		{
-			static HALF_CONSTEXPR expr negate(float arg) { return expr(-arg); }
-			static expr fabs(float arg) { return expr(std::fabs(arg)); }
-			static expr sqrt(float arg) { return expr(std::sqrt(arg)); }
-		};
-
-		/// Wrapper for binary half-precision functions needing specialization for individual argument types.
-		/// \tparam T first argument type
-		/// \tparam U first argument type
-		template<typename T,typename U> struct binary_specialized
-		{
-			/// Addition implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision sum stored in single-precision
-			static expr plus(float x, float y) { return expr(x+y); }
-
-			/// Subtraction implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision difference stored in single-precision
-			static expr minus(float x, float y) { return expr(x-y); }
-
-			/// Multiplication implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision product stored in single-precision
-			static expr multiplies(float x, float y) { return expr(x*y); }
-
-			/// Division implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision quotient stored in single-precision
-			static expr divides(float x, float y) { return expr(x/y); }
-
-			/// Minimum implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return minimum value
-			static expr fmin(float x, float y)
-			{
-			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::fmin(x, y));
-			#else
-				if(builtin_isnan(x))
-					return expr(y);
-				if(builtin_isnan(y))
-					return expr(x);
-				return expr(std::min(x, y));
-			#endif
-			}
-
-			/// Maximum implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return maximum value
-			static expr fmax(float x, float y)
-			{
-			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::fmax(x, y));
-			#else
-				if(builtin_isnan(x))
-					return expr(y);
-				if(builtin_isnan(y))
-					return expr(x);
-				return expr(std::max(x, y));
-			#endif
-			}
-		};
-		template<> struct binary_specialized<half,half>
-		{
-			static half plus(half x, half y)
-			{
-				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
-				if(absx > 0x7C00)
-					return x;
-				if(absy > 0x7C00)
-					return y;
-				bool sub = (x.data_^y.data_) >> 15;
-				if(absx == 0x7C00)
-					return (sub && absy==0x7C00) ? half(binary, 0x7FFF) : x;
-				if(absy == 0x7C00)
-					return y;
-				if(!absx)
-					return y;
-				if(!absy)
-					return x;
-				uint16 value = ((sub && absy>absx) ? y.data_ : x.data_) & 0x8000;
-				if(absy > absx)
-					std::swap(absx, absy);
-				int exp = (absx>>10) + (absx<=0x3FF), d = exp - (absy>>10) - (absy<=0x3FF);
-				int mx = ((absx&0x3FF)|((absx>0x3FF)<<10)) << 3, my;
-				if(d < 13)
-				{
-					my = ((absy&0x3FF)|((absy>0x3FF)<<10)) << 2;
-					int s = 0;
-					for(; d; --d,my>>=1)
-						s |= my & 1;
-					my = (my<<1) | s;
-				}
-				else
-					my = 1;
-				int m, s = 0;
-				if(sub)
-				{
-					m = mx - my;
-					for(; m<0x2000 && exp>1; m<<=1,--exp) ;
-				}
-				else
-				{
-					m = mx + my;
-					if(m > 0x3FFF)
-					{
-						s = m & 1;
-						m >>= 1;
-						if(++exp > 30)
-						{
-							if(half::round_style == std::round_toward_infinity)
-								return half(binary, value|0x7C00-(value>>15));
-							else if(half::round_style == std::round_toward_neg_infinity)
-								return half(binary, value|0x7BFF+(value>>15));
-							return half(binary, value|0x7BFF+(half::round_style!=std::round_toward_zero));
-						}
-					}
-				}
-				s |= (m|(m>>1)) & 1;
-				int g = (m>>2) & 1;
-				value |= ((exp-1)<<10) + (m>>3);
-				if(half::round_style == std::round_to_nearest)
-					#if HALF_ROUND_TIES_TO_EVEN
-						value += g & (s|value);
-					#else
-						value += g;
-					#endif
-				else if(half::round_style == std::round_toward_infinity)
-					value += ~(value>>15) & (g|s);
-				else if(half::round_style == std::round_toward_neg_infinity)
-					value += (value>>15) & (g|s);
-				return half(binary, value);
-			}
-
-			static half minus(half x, half y) { return plus(x, half(binary, y.data_^0x8000)); }
-
-			static half multiplies(half x, half y)
-			{
-				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
-				if(absx > 0x7C00)
-					return x;
-				if(absy > 0x7C00)
-					return y;
-				uint16 value = (x.data_^y.data_) & 0x8000;
-				if(absx == 0x7C00)
-					return half(binary, !absy ? 0x7FFF : (value|0x7C00));
-				if(absy == 0x7C00)
-					return half(binary, !absx ? 0x7FFF : (value|0x7C00));
-				if(!absx || !absy)
-					return half(binary, value);
-				int exp = -15;
-				for(; absx<0x400; absx<<=1,--exp) ;
-				for(; absy<0x400; absy<<=1,--exp) ;
-				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
-				int i = m >> 21, s = m & i, g;
-				m >>= i;
-				exp += (absx>>10) + (absy>>10) + i;
-				if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-				{
-					s |= (m|(m>>1)) & 0xFF;
-					s |= s >> 4;
-					s |= s >> 2;
-					s |= s >> 1;
-					s &= 1;
-					g = (m>>9) & 1;
-				}
-				if(exp > 30)
-				{
-					if(half::round_style == std::round_toward_infinity)
-						value |= 0x7C00 - (value>>15);
-					else if(half::round_style == std::round_toward_neg_infinity)
-						value |= 0x7BFF + (value>>15);
-					else
-						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
-				}
-				else if(exp > -11)
-				{
-					if(exp > 0)
-						value |= (exp<<10) | ((m>>10)&0x3FF);
-					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-					{
-						m >>= 10;
-						s |= g;
-						for(; exp; ++exp,m>>=1)
-							s |= m & 1;
-						g = m & 1;
-						value |= m >> 1;
-					}
-					else
-						value |= m >> (11-exp);
-					if(half::round_style == std::round_to_nearest)
-						#if HALF_ROUND_TIES_TO_EVEN
-							value += g & (s|value);
-						#else
-							value += g;
-						#endif
-					else if(half::round_style == std::round_toward_infinity)
-						value += ~(value>>15) & (g|s);
-					else if(half::round_style == std::round_toward_neg_infinity)
-						value += (value>>15) & (g|s);
-				}
-				else if(half::round_style == std::round_toward_infinity)
-					value -= (value>>15) - 1;
-				else if(half::round_style == std::round_toward_neg_infinity)
-					value += value >> 15;
-				return half(binary, value);
-			}
-
-			static half divides(half x, half y)
-			{
-				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
-				if(absx > 0x7C00)
-					return x;
-				if(absy > 0x7C00)
-					return y;
-				uint16 value = (x.data_^y.data_) & 0x8000;
-				if(absx == 0x7C00 || !absy)
-					return half(binary, (absx==absy) ? 0x7FFF : (value|0x7C00));
-				if(absy == 0x7C00 || !absx)
-					return half(binary, (absx==absy) ? 0x7FFF : value);
-				int exp = 15;
-				for(; absx<0x400; absx<<=1,--exp) ;
-				for(; absy<0x400; absy<<=1,++exp) ;
-				long mx = ((absx&0x3FF)|0x400L) << 1, my = ((absy&0x3FF)|0x400L) << 1;
-				int i = mx < my;
-				mx <<= i;
-				exp += (absx>>10) - (absy>>10) - i;
-				std::ldiv_t div = std::div(mx<<11, my);
-				int m = div.quot, g = m & 1, s = div.rem != 0;
-				m >>= 1;
-				if(exp > 30)
-				{
-					if(half::round_style == std::round_toward_infinity)
-						value |= 0x7C00 - (value>>15);
-					else if(half::round_style == std::round_toward_neg_infinity)
-						value |= 0x7BFF + (value>>15);
-					else
-						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
-				}
-				else if(exp > -11)
-				{
-					if(exp > 0)
-						value |= (exp<<10) | (m&0x3FF);
-					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-					{
-						s |= g;
-						for(; exp; ++exp,m>>=1)
-							s |= m & 1;
-						g = m & 1;
-						value |= m >> 1;
-					}
-					else
-						value |= m >> (1-exp);
-					if(half::round_style == std::round_to_nearest)
-						#if HALF_ROUND_TIES_TO_EVEN
-							value += g & (s|value);
-						#else
-							value += g;
-						#endif
-					else if(half::round_style == std::round_toward_infinity)
-						value += ~(value>>15) & (g|s);
-					else if(half::round_style == std::round_toward_neg_infinity)
-						value += (value>>15) & (g|s);
-				}
-				else if(half::round_style == std::round_toward_infinity)
-					value -= (value>>15) - 1;
-				else if(half::round_style == std::round_toward_neg_infinity)
-					value += value >> 15;
-				return half(binary, value);
-			}
-
-			static half fmin(half x, half y)
-			{
-				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
-				if(xabs > 0x7C00)
-					return y;
-				if(yabs > 0x7C00)
-					return x;
-				return (((xabs==x.data_) ? xabs : -xabs) > ((yabs==y.data_) ? yabs : -yabs)) ? y : x;
-			}
-
-			static half fmax(half x, half y)
-			{
-				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
-				if(xabs > 0x7C00)
-					return y;
-				if(yabs > 0x7C00)
-					return x;
-				return (((xabs==x.data_) ? xabs : -xabs) < ((yabs==y.data_) ? yabs : -yabs)) ? y : x;
-			}
-		};
-
 		/// Helper class for half casts.
 		/// This class template has to be specialized for all valid cast argument to define an appropriate static `cast` member 
 		/// function and a corresponding `type` member denoting its return type.
@@ -2175,877 +2037,593 @@ namespace half_float
 		#endif
 
 			typedef T type;
-			template<typename U> static T cast(U arg) { return cast_impl(arg, is_float<T>()); }
+			static T cast(half arg) { return cast_impl(arg, is_float<T>()); }
 
 		private:
 			static T cast_impl(float arg, true_type) { return static_cast<T>(arg); }
 			static T cast_impl(half arg, false_type) { return half2int<R,T>(arg.data_); }
 		};
-		template<typename T,std::float_round_style R> struct half_caster<T,expr,R> : public half_caster<T,half,R> {};
 		template<std::float_round_style R> struct half_caster<half,half,R>
 		{
 			typedef half type;
 			static half cast(half arg) { return arg; }
 		};
-		template<std::float_round_style R> struct half_caster<half,expr,R> : public half_caster<half,half,R> {};
-
-		/// \name Comparison operators
-		/// \{
-
-		/// Comparison for equality.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if operands equal
-		/// \retval false else
-		template<typename T,typename U> typename enable<bool,T,U>::type operator==(T x, U y) { return functions::isequal(x, y); }
-
-		/// Comparison for inequality.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if operands not equal
-		/// \retval false else
-		template<typename T,typename U> typename enable<bool,T,U>::type operator!=(T x, U y) { return functions::isnotequal(x, y); }
-
-		/// Comparison for less than.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if \a x less than \a y
-		/// \retval false else
-		template<typename T,typename U> typename enable<bool,T,U>::type operator<(T x, U y) { return functions::isless(x, y); }
-
-		/// Comparison for greater than.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if \a x greater than \a y
-		/// \retval false else
-		template<typename T,typename U> typename enable<bool,T,U>::type operator>(T x, U y) { return functions::isgreater(x, y); }
-
-		/// Comparison for less equal.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if \a x less equal \a y
-		/// \retval false else
-		template<typename T,typename U> typename enable<bool,T,U>::type operator<=(T x, U y) { return functions::islessequal(x, y); }
-
-		/// Comparison for greater equal.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if \a x greater equal \a y
-		/// \retval false else
-		template<typename T,typename U> typename enable<bool,T,U>::type operator>=(T x, U y) { return functions::isgreaterequal(x, y); }
-
-		/// \}
-		/// \name Arithmetic operators
-		/// \{
-
-		/// Add halfs.
-		/// \param x left operand
-		/// \param y right operand
-		/// \return sum of half expressions
-//		template<typename T,typename U> typename result<T,U>::type operator+(T x, U y) { return binary_specialized<T,U>::plus(x, y); }
-		inline half operator+(half x, half y) { return binary_specialized<half,half>::plus(x, y); }
-		inline expr operator+(half x, expr y) { return binary_specialized<half,expr>::plus(x, y); }
-		inline expr operator+(expr x, half y) { return binary_specialized<expr,half>::plus(x, y); }
-		inline expr operator+(expr x, expr y) { return binary_specialized<expr,expr>::plus(x, y); }
-
-		/// Subtract halfs.
-		/// \param x left operand
-		/// \param y right operand
-		/// \return difference of half expressions
-//		template<typename T,typename U> typename result<T,U>::type operator-(T x, U y) { return binary_specialized<T,U>::minus(x, y); }
-		inline half operator-(half x, half y) { return binary_specialized<half,half>::minus(x, y); }
-		inline expr operator-(half x, expr y) { return binary_specialized<half,expr>::minus(x, y); }
-		inline expr operator-(expr x, half y) { return binary_specialized<expr,half>::minus(x, y); }
-		inline expr operator-(expr x, expr y) { return binary_specialized<expr,expr>::minus(x, y); }
-
-		/// Multiply halfs.
-		/// \param x left operand
-		/// \param y right operand
-		/// \return product of half expressions
-//		template<typename T,typename U> typename result<T,U>::type operator*(T x, U y) { return binary_specialized<T,U>::multiplies(x, y); }
-		inline half operator*(half x, half y) { return binary_specialized<half,half>::multiplies(x, y); }
-		inline expr operator*(half x, expr y) { return binary_specialized<half,expr>::multiplies(x, y); }
-		inline expr operator*(expr x, half y) { return binary_specialized<expr,half>::multiplies(x, y); }
-		inline expr operator*(expr x, expr y) { return binary_specialized<expr,expr>::multiplies(x, y); }
-
-		/// Divide halfs.
-		/// \param x left operand
-		/// \param y right operand
-		/// \return quotient of half expressions
-//		template<typename T,typename U> typename result<T,U>::type operator/(T x, U y) { return binary_specialized<T,U>::divides(x, y); }
-		inline half operator/(half x, half y) { return binary_specialized<half,half>::divides(x, y); }
-		inline expr operator/(half x, expr y) { return binary_specialized<half,expr>::divides(x, y); }
-		inline expr operator/(expr x, half y) { return binary_specialized<expr,half>::divides(x, y); }
-		inline expr operator/(expr x, expr y) { return binary_specialized<expr,expr>::divides(x, y); }
-
-		/// Identity.
-		/// \param arg operand
-		/// \return uncahnged operand
-		template<typename T> HALF_CONSTEXPR typename enable<T,T>::type operator+(T arg) { return arg; }
-
-		/// Negation.
-		/// \param arg operand
-		/// \return negated operand
-		template<typename T> HALF_CONSTEXPR typename enable<T,T>::type operator-(T arg) { return unary_specialized<T>::negate(arg); }
-
-		/// \}
-		/// \name Input and output
-		/// \{
-
-		/// Output operator.
-		/// \param out output stream to write into
-		/// \param arg half expression to write
-		/// \return reference to output stream
-		template<typename T,typename charT,typename traits> typename enable<std::basic_ostream<charT,traits>&,T>::type
-			operator<<(std::basic_ostream<charT,traits> &out, T arg) { return functions::write(out, arg); }
-
-		/// Input operator.
-		/// \param in input stream to read from
-		/// \param arg half to read into
-		/// \return reference to input stream
-		template<typename charT,typename traits> std::basic_istream<charT,traits>&
-			operator>>(std::basic_istream<charT,traits> &in, half &arg) { return functions::read(in, arg); }
-
-		/// \}
-		/// \name Basic mathematical operations
-		/// \{
-
-		/// Absolute value.
-		/// \param arg operand
-		/// \return absolute value of \a arg
-//		template<typename T> typename enable<T,T>::type abs(T arg) { return unary_specialized<T>::fabs(arg); }
-		inline half abs(half arg) { return unary_specialized<half>::fabs(arg); }
-		inline expr abs(expr arg) { return unary_specialized<expr>::fabs(arg); }
-
-		/// Absolute value.
-		/// \param arg operand
-		/// \return absolute value of \a arg
-//		template<typename T> typename enable<T,T>::type fabs(T arg) { return unary_specialized<T>::fabs(arg); }
-		inline half fabs(half arg) { return unary_specialized<half>::fabs(arg); }
-		inline expr fabs(expr arg) { return unary_specialized<expr>::fabs(arg); }
-
-		/// Remainder of division.
-		/// \param x first operand
-		/// \param y second operand
-		/// \return remainder of floating point division.
-//		template<typename T,typename U> typename enable<expr,T,U>::type fmod(T x, U y) { return functions::fmod(x, y); }
-		inline expr fmod(half x, half y) { return functions::fmod(x, y); }
-		inline expr fmod(half x, expr y) { return functions::fmod(x, y); }
-		inline expr fmod(expr x, half y) { return functions::fmod(x, y); }
-		inline expr fmod(expr x, expr y) { return functions::fmod(x, y); }
-
-		/// Remainder of division.
-		/// \param x first operand
-		/// \param y second operand
-		/// \return remainder of floating point division.
-//		template<typename T,typename U> typename enable<expr,T,U>::type remainder(T x, U y) { return functions::remainder(x, y); }
-		inline expr remainder(half x, half y) { return functions::remainder(x, y); }
-		inline expr remainder(half x, expr y) { return functions::remainder(x, y); }
-		inline expr remainder(expr x, half y) { return functions::remainder(x, y); }
-		inline expr remainder(expr x, expr y) { return functions::remainder(x, y); }
-
-		/// Remainder of division.
-		/// \param x first operand
-		/// \param y second operand
-		/// \param quo address to store some bits of quotient at
-		/// \return remainder of floating point division.
-//		template<typename T,typename U> typename enable<expr,T,U>::type remquo(T x, U y, int *quo) { return functions::remquo(x, y, quo); }
-		inline expr remquo(half x, half y, int *quo) { return functions::remquo(x, y, quo); }
-		inline expr remquo(half x, expr y, int *quo) { return functions::remquo(x, y, quo); }
-		inline expr remquo(expr x, half y, int *quo) { return functions::remquo(x, y, quo); }
-		inline expr remquo(expr x, expr y, int *quo) { return functions::remquo(x, y, quo); }
-
-		/// Fused multiply add.
-		/// \param x first operand
-		/// \param y second operand
-		/// \param z third operand
-		/// \return ( \a x * \a y ) + \a z rounded as one operation.
-//		template<typename T,typename U,typename V> typename enable<expr,T,U,V>::type fma(T x, U y, V z) { return functions::fma(x, y, z); }
-		inline expr fma(half x, half y, half z) { return functions::fma(x, y, z); }
-		inline expr fma(half x, half y, expr z) { return functions::fma(x, y, z); }
-		inline expr fma(half x, expr y, half z) { return functions::fma(x, y, z); }
-		inline expr fma(half x, expr y, expr z) { return functions::fma(x, y, z); }
-		inline expr fma(expr x, half y, half z) { return functions::fma(x, y, z); }
-		inline expr fma(expr x, half y, expr z) { return functions::fma(x, y, z); }
-		inline expr fma(expr x, expr y, half z) { return functions::fma(x, y, z); }
-		inline expr fma(expr x, expr y, expr z) { return functions::fma(x, y, z); }
-
-		/// Maximum of half expressions.
-		/// \param x first operand
-		/// \param y second operand
-		/// \return maximum of operands
-//		template<typename T,typename U> typename result<T,U>::type fmax(T x, U y) { return binary_specialized<T,U>::fmax(x, y); }
-		inline half fmax(half x, half y) { return binary_specialized<half,half>::fmax(x, y); }
-		inline expr fmax(half x, expr y) { return binary_specialized<half,expr>::fmax(x, y); }
-		inline expr fmax(expr x, half y) { return binary_specialized<expr,half>::fmax(x, y); }
-		inline expr fmax(expr x, expr y) { return binary_specialized<expr,expr>::fmax(x, y); }
-
-		/// Minimum of half expressions.
-		/// \param x first operand
-		/// \param y second operand
-		/// \return minimum of operands
-//		template<typename T,typename U> typename result<T,U>::type fmin(T x, U y) { return binary_specialized<T,U>::fmin(x, y); }
-		inline half fmin(half x, half y) { return binary_specialized<half,half>::fmin(x, y); }
-		inline expr fmin(half x, expr y) { return binary_specialized<half,expr>::fmin(x, y); }
-		inline expr fmin(expr x, half y) { return binary_specialized<expr,half>::fmin(x, y); }
-		inline expr fmin(expr x, expr y) { return binary_specialized<expr,expr>::fmin(x, y); }
-
-		/// Positive difference.
-		/// \param x first operand
-		/// \param y second operand
-		/// \return \a x - \a y or 0 if difference negative
-//		template<typename T,typename U> typename enable<expr,T,U>::type fdim(T x, U y) { return functions::fdim(x, y); }
-		inline expr fdim(half x, half y) { return functions::fdim(x, y); }
-		inline expr fdim(half x, expr y) { return functions::fdim(x, y); }
-		inline expr fdim(expr x, half y) { return functions::fdim(x, y); }
-		inline expr fdim(expr x, expr y) { return functions::fdim(x, y); }
-
-		/// Get NaN value.
-		/// \param arg descriptive string (ignored)
-		/// \return quiet NaN
-		inline half nanh(const char *arg) { return functions::nanh(arg); }
-
-		/// \}
-		/// \name Exponential functions
-		/// \{
-
-		/// Exponential function.
-		/// \param arg function argument
-		/// \return e raised to \a arg
-//		template<typename T> typename enable<expr,T>::type exp(T arg) { return functions::exp(arg); }
-		inline expr exp(half arg) { return functions::exp(arg); }
-		inline expr exp(expr arg) { return functions::exp(arg); }
-
-		/// Exponential minus one.
-		/// \param arg function argument
-		/// \return e raised to \a arg subtracted by 1
-//		template<typename T> typename enable<expr,T>::type expm1(T arg) { return functions::expm1(arg); }
-		inline expr expm1(half arg) { return functions::expm1(arg); }
-		inline expr expm1(expr arg) { return functions::expm1(arg); }
-
-		/// Binary exponential.
-		/// \param arg function argument
-		/// \return 2 raised to \a arg
-//		template<typename T> typename enable<expr,T>::type exp2(T arg) { return functions::exp2(arg); }
-		inline expr exp2(half arg) { return functions::exp2(arg); }
-		inline expr exp2(expr arg) { return functions::exp2(arg); }
-
-		/// Natural logorithm.
-		/// \param arg function argument
-		/// \return logarithm of \a arg to base e
-//		template<typename T> typename enable<expr,T>::type log(T arg) { return functions::log(arg); }
-		inline expr log(half arg) { return functions::log(arg); }
-		inline expr log(expr arg) { return functions::log(arg); }
-
-		/// Common logorithm.
-		/// \param arg function argument
-		/// \return logarithm of \a arg to base 10
-//		template<typename T> typename enable<expr,T>::type log10(T arg) { return functions::log10(arg); }
-		inline expr log10(half arg) { return functions::log10(arg); }
-		inline expr log10(expr arg) { return functions::log10(arg); }
-
-		/// Natural logorithm.
-		/// \param arg function argument
-		/// \return logarithm of \a arg plus 1 to base e
-//		template<typename T> typename enable<expr,T>::type log1p(T arg) { return functions::log1p(arg); }
-		inline expr log1p(half arg) { return functions::log1p(arg); }
-		inline expr log1p(expr arg) { return functions::log1p(arg); }
-
-		/// Binary logorithm.
-		/// \param arg function argument
-		/// \return logarithm of \a arg to base 2
-//		template<typename T> typename enable<expr,T>::type log2(T arg) { return functions::log2(arg); }
-		inline expr log2(half arg) { return functions::log2(arg); }
-		inline expr log2(expr arg) { return functions::log2(arg); }
-
-		/// \}
-		/// \name Power functions
-		/// \{
-
-		/// Square root.
-		/// \param arg function argument
-		/// \return square root of \a arg
-//		template<typename T> typename enable<T,T>::type sqrt(T arg) { return unary_specialized<T>::sqrt(arg); }
-		inline half sqrt(half arg) { return unary_specialized<half>::sqrt(arg); }
-		inline expr sqrt(expr arg) { return unary_specialized<expr>::sqrt(arg); }
-
-		/// Cubic root.
-		/// \param arg function argument
-		/// \return cubic root of \a arg
-//		template<typename T> typename enable<expr,T>::type cbrt(T arg) { return functions::cbrt(arg); }
-		inline expr cbrt(half arg) { return functions::cbrt(arg); }
-		inline expr cbrt(expr arg) { return functions::cbrt(arg); }
-
-		/// Hypotenuse function.
-		/// \param x first argument
-		/// \param y second argument
-		/// \return square root of sum of squares without internal over- or underflows
-//		template<typename T,typename U> typename enable<expr,T,U>::type hypot(T x, U y) { return functions::hypot(x, y); }
-		inline expr hypot(half x, half y) { return functions::hypot(x, y); }
-		inline expr hypot(half x, expr y) { return functions::hypot(x, y); }
-		inline expr hypot(expr x, half y) { return functions::hypot(x, y); }
-		inline expr hypot(expr x, expr y) { return functions::hypot(x, y); }
-
-		/// Power function.
-		/// \param base first argument
-		/// \param exp second argument
-		/// \return \a base raised to \a exp
-//		template<typename T,typename U> typename enable<expr,T,U>::type pow(T base, U exp) { return functions::pow(base, exp); }
-		inline expr pow(half base, half exp) { return functions::pow(base, exp); }
-		inline expr pow(half base, expr exp) { return functions::pow(base, exp); }
-		inline expr pow(expr base, half exp) { return functions::pow(base, exp); }
-		inline expr pow(expr base, expr exp) { return functions::pow(base, exp); }
-
-		/// \}
-		/// \name Trigonometric functions
-		/// \{
-
-		/// Sine function.
-		/// \param arg function argument
-		/// \return sine value of \a arg
-//		template<typename T> typename enable<expr,T>::type sin(T arg) { return functions::sin(arg); }
-		inline expr sin(half arg) { return functions::sin(arg); }
-		inline expr sin(expr arg) { return functions::sin(arg); }
-
-		/// Cosine function.
-		/// \param arg function argument
-		/// \return cosine value of \a arg
-//		template<typename T> typename enable<expr,T>::type cos(T arg) { return functions::cos(arg); }
-		inline expr cos(half arg) { return functions::cos(arg); }
-		inline expr cos(expr arg) { return functions::cos(arg); }
-
-		/// Tangent function.
-		/// \param arg function argument
-		/// \return tangent value of \a arg
-//		template<typename T> typename enable<expr,T>::type tan(T arg) { return functions::tan(arg); }
-		inline expr tan(half arg) { return functions::tan(arg); }
-		inline expr tan(expr arg) { return functions::tan(arg); }
-
-		/// Arc sine.
-		/// \param arg function argument
-		/// \return arc sine value of \a arg
-//		template<typename T> typename enable<expr,T>::type asin(T arg) { return functions::asin(arg); }
-		inline expr asin(half arg) { return functions::asin(arg); }
-		inline expr asin(expr arg) { return functions::asin(arg); }
-
-		/// Arc cosine function.
-		/// \param arg function argument
-		/// \return arc cosine value of \a arg
-//		template<typename T> typename enable<expr,T>::type acos(T arg) { return functions::acos(arg); }
-		inline expr acos(half arg) { return functions::acos(arg); }
-		inline expr acos(expr arg) { return functions::acos(arg); }
-
-		/// Arc tangent function.
-		/// \param arg function argument
-		/// \return arc tangent value of \a arg
-//		template<typename T> typename enable<expr,T>::type atan(T arg) { return functions::atan(arg); }
-		inline expr atan(half arg) { return functions::atan(arg); }
-		inline expr atan(expr arg) { return functions::atan(arg); }
-
-		/// Arc tangent function.
-		/// \param x first argument
-		/// \param y second argument
-		/// \return arc tangent value
-//		template<typename T,typename U> typename enable<expr,T,U>::type atan2(T x, U y) { return functions::atan2(x, y); }
-		inline expr atan2(half x, half y) { return functions::atan2(x, y); }
-		inline expr atan2(half x, expr y) { return functions::atan2(x, y); }
-		inline expr atan2(expr x, half y) { return functions::atan2(x, y); }
-		inline expr atan2(expr x, expr y) { return functions::atan2(x, y); }
-
-		/// \}
-		/// \name Hyperbolic functions
-		/// \{
-
-		/// Hyperbolic sine.
-		/// \param arg function argument
-		/// \return hyperbolic sine value of \a arg
-//		template<typename T> typename enable<expr,T>::type sinh(T arg) { return functions::sinh(arg); }
-		inline expr sinh(half arg) { return functions::sinh(arg); }
-		inline expr sinh(expr arg) { return functions::sinh(arg); }
-
-		/// Hyperbolic cosine.
-		/// \param arg function argument
-		/// \return hyperbolic cosine value of \a arg
-//		template<typename T> typename enable<expr,T>::type cosh(T arg) { return functions::cosh(arg); }
-		inline expr cosh(half arg) { return functions::cosh(arg); }
-		inline expr cosh(expr arg) { return functions::cosh(arg); }
-
-		/// Hyperbolic tangent.
-		/// \param arg function argument
-		/// \return hyperbolic tangent value of \a arg
-//		template<typename T> typename enable<expr,T>::type tanh(T arg) { return functions::tanh(arg); }
-		inline expr tanh(half arg) { return functions::tanh(arg); }
-		inline expr tanh(expr arg) { return functions::tanh(arg); }
-
-		/// Hyperbolic area sine.
-		/// \param arg function argument
-		/// \return area sine value of \a arg
-//		template<typename T> typename enable<expr,T>::type asinh(T arg) { return functions::asinh(arg); }
-		inline expr asinh(half arg) { return functions::asinh(arg); }
-		inline expr asinh(expr arg) { return functions::asinh(arg); }
-
-		/// Hyperbolic area cosine.
-		/// \param arg function argument
-		/// \return area cosine value of \a arg
-//		template<typename T> typename enable<expr,T>::type acosh(T arg) { return functions::acosh(arg); }
-		inline expr acosh(half arg) { return functions::acosh(arg); }
-		inline expr acosh(expr arg) { return functions::acosh(arg); }
-
-		/// Hyperbolic area tangent.
-		/// \param arg function argument
-		/// \return area tangent value of \a arg
-//		template<typename T> typename enable<expr,T>::type atanh(T arg) { return functions::atanh(arg); }
-		inline expr atanh(half arg) { return functions::atanh(arg); }
-		inline expr atanh(expr arg) { return functions::atanh(arg); }
-
-		/// \}
-		/// \name Error and gamma functions
-		/// \{
-
-		/// Error function.
-		/// \param arg function argument
-		/// \return error function value of \a arg
-//		template<typename T> typename enable<expr,T>::type erf(T arg) { return functions::erf(arg); }
-		inline expr erf(half arg) { return functions::erf(arg); }
-		inline expr erf(expr arg) { return functions::erf(arg); }
-
-		/// Complementary error function.
-		/// \param arg function argument
-		/// \return 1 minus error function value of \a arg
-//		template<typename T> typename enable<expr,T>::type erfc(T arg) { return functions::erfc(arg); }
-		inline expr erfc(half arg) { return functions::erfc(arg); }
-		inline expr erfc(expr arg) { return functions::erfc(arg); }
-
-		/// Natural logarithm of gamma function.
-		/// \param arg function argument
-		/// \return natural logarith of gamma function for \a arg
-//		template<typename T> typename enable<expr,T>::type lgamma(T arg) { return functions::lgamma(arg); }
-		inline expr lgamma(half arg) { return functions::lgamma(arg); }
-		inline expr lgamma(expr arg) { return functions::lgamma(arg); }
-
-		/// Gamma function.
-		/// \param arg function argument
-		/// \return gamma function value of \a arg
-//		template<typename T> typename enable<expr,T>::type tgamma(T arg) { return functions::tgamma(arg); }
-		inline expr tgamma(half arg) { return functions::tgamma(arg); }
-		inline expr tgamma(expr arg) { return functions::tgamma(arg); }
-
-		/// \}
-		/// \name Rounding
-		/// \{
-
-		/// Nearest integer not less than half value.
-		/// \param arg half to round
-		/// \return nearest integer not less than \a arg
-//		template<typename T> typename enable<half,T>::type ceil(T arg) { return functions::ceil(arg); }
-		inline half ceil(half arg) { return functions::ceil(arg); }
-		inline half ceil(expr arg) { return functions::ceil(arg); }
-
-		/// Nearest integer not greater than half value.
-		/// \param arg half to round
-		/// \return nearest integer not greater than \a arg
-//		template<typename T> typename enable<half,T>::type floor(T arg) { return functions::floor(arg); }
-		inline half floor(half arg) { return functions::floor(arg); }
-		inline half floor(expr arg) { return functions::floor(arg); }
-
-		/// Nearest integer not greater in magnitude than half value.
-		/// \param arg half to round
-		/// \return nearest integer not greater in magnitude than \a arg
-//		template<typename T> typename enable<half,T>::type trunc(T arg) { return functions::trunc(arg); }
-		inline half trunc(half arg) { return functions::trunc(arg); }
-		inline half trunc(expr arg) { return functions::trunc(arg); }
-
-		/// Nearest integer.
-		/// \param arg half to round
-		/// \return nearest integer, rounded away from zero in half-way cases
-//		template<typename T> typename enable<half,T>::type round(T arg) { return functions::round(arg); }
-		inline half round(half arg) { return functions::round(arg); }
-		inline half round(expr arg) { return functions::round(arg); }
-
-		/// Nearest integer.
-		/// \param arg half to round
-		/// \return nearest integer, rounded away from zero in half-way cases
-//		template<typename T> typename enable<long,T>::type lround(T arg) { return functions::lround(arg); }
-		inline long lround(half arg) { return functions::lround(arg); }
-		inline long lround(expr arg) { return functions::lround(arg); }
-
-		/// Nearest integer using half's internal rounding mode.
-		/// \param arg half expression to round
-		/// \return nearest integer using default rounding mode
-//		template<typename T> typename enable<half,T>::type nearbyint(T arg) { return functions::nearbyint(arg); }
-		inline half nearbyint(half arg) { return functions::rint(arg); }
-		inline half nearbyint(expr arg) { return functions::rint(arg); }
-
-		/// Nearest integer using half's internal rounding mode.
-		/// \param arg half expression to round
-		/// \return nearest integer using default rounding mode
-//		template<typename T> typename enable<half,T>::type rint(T arg) { return functions::rint(arg); }
-		inline half rint(half arg) { return functions::rint(arg); }
-		inline half rint(expr arg) { return functions::rint(arg); }
-
-		/// Nearest integer using half's internal rounding mode.
-		/// \param arg half expression to round
-		/// \return nearest integer using default rounding mode
-//		template<typename T> typename enable<long,T>::type lrint(T arg) { return functions::lrint(arg); }
-		inline long lrint(half arg) { return functions::lrint(arg); }
-		inline long lrint(expr arg) { return functions::lrint(arg); }
-	#if HALF_ENABLE_CPP11_LONG_LONG
-		/// Nearest integer.
-		/// \param arg half to round
-		/// \return nearest integer, rounded away from zero in half-way cases
-//		template<typename T> typename enable<long long,T>::type llround(T arg) { return functions::llround(arg); }
-		inline long long llround(half arg) { return functions::llround(arg); }
-		inline long long llround(expr arg) { return functions::llround(arg); }
-
-		/// Nearest integer using half's internal rounding mode.
-		/// \param arg half expression to round
-		/// \return nearest integer using default rounding mode
-//		template<typename T> typename enable<long long,T>::type llrint(T arg) { return functions::llrint(arg); }
-		inline long long llrint(half arg) { return functions::llrint(arg); }
-		inline long long llrint(expr arg) { return functions::llrint(arg); }
-	#endif
-
-		/// \}
-		/// \name Floating point manipulation
-		/// \{
-
-		/// Decompress floating point number.
-		/// \param arg number to decompress
-		/// \param exp address to store exponent at
-		/// \return significant in range [0.5, 1)
-//		template<typename T> typename enable<half,T>::type frexp(T arg, int *exp) { return functions::frexp(arg, exp); }
-		inline half frexp(half arg, int *exp) { return functions::frexp(arg, exp); }
-		inline half frexp(expr arg, int *exp) { return functions::frexp(arg, exp); }
-
-		/// Multiply by power of two.
-		/// \param arg number to modify
-		/// \param exp power of two to multiply with
-		/// \return \a arg multplied by 2 raised to \a exp
-//		template<typename T> typename enable<half,T>::type ldexp(T arg, int exp) { return functions::scalbln(arg, exp); }
-		inline half ldexp(half arg, int exp) { return functions::scalbln(arg, exp); }
-		inline half ldexp(expr arg, int exp) { return functions::scalbln(arg, exp); }
-
-		/// Extract integer and fractional parts.
-		/// \param arg number to decompress
-		/// \param iptr address to store integer part at
-		/// \return fractional part
-//		template<typename T> typename enable<half,T>::type modf(T arg, half *iptr) { return functions::modf(arg, iptr); }
-		inline half modf(half arg, half *iptr) { return functions::modf(arg, iptr); }
-		inline half modf(expr arg, half *iptr) { return functions::modf(arg, iptr); }
-
-		/// Multiply by power of two.
-		/// \param arg number to modify
-		/// \param exp power of two to multiply with
-		/// \return \a arg multplied by 2 raised to \a exp
-//		template<typename T> typename enable<half,T>::type scalbn(T arg, int exp) { return functions::scalbln(arg, exp); }
-		inline half scalbn(half arg, int exp) { return functions::scalbln(arg, exp); }
-		inline half scalbn(expr arg, int exp) { return functions::scalbln(arg, exp); }
-
-		/// Multiply by power of two.
-		/// \param arg number to modify
-		/// \param exp power of two to multiply with
-		/// \return \a arg multplied by 2 raised to \a exp	
-//		template<typename T> typename enable<half,T>::type scalbln(T arg, long exp) { return functions::scalbln(arg, exp); }
-		inline half scalbln(half arg, long exp) { return functions::scalbln(arg, exp); }
-		inline half scalbln(expr arg, long exp) { return functions::scalbln(arg, exp); }
-
-		/// Extract exponent.
-		/// \param arg number to query
-		/// \return floating point exponent
-		/// \retval FP_ILOGB0 for zero
-		/// \retval FP_ILOGBNAN for NaN
-		/// \retval MAX_INT for infinity
-//		template<typename T> typename enable<int,T>::type ilogb(T arg) { return functions::ilogb(arg); }
-		inline int ilogb(half arg) { return functions::ilogb(arg); }
-		inline int ilogb(expr arg) { return functions::ilogb(arg); }
-
-		/// Extract exponent.
-		/// \param arg number to query
-		/// \return floating point exponent
-//		template<typename T> typename enable<half,T>::type logb(T arg) { return functions::logb(arg); }
-		inline half logb(half arg) { return functions::logb(arg); }
-		inline half logb(expr arg) { return functions::logb(arg); }
-
-		/// Next representable value.
-		/// \param from value to compute next representable value for
-		/// \param to direction towards which to compute next value
-		/// \return next representable value after \a from in direction towards \a to
-//		template<typename T,typename U> typename enable<half,T,U>::type nextafter(T from, U to) { return functions::nextafter(from, to); }
-		inline half nextafter(half from, half to) { return functions::nextafter(from, to); }
-		inline half nextafter(half from, expr to) { return functions::nextafter(from, to); }
-		inline half nextafter(expr from, half to) { return functions::nextafter(from, to); }
-		inline half nextafter(expr from, expr to) { return functions::nextafter(from, to); }
-
-		/// Next representable value.
-		/// \param from value to compute next representable value for
-		/// \param to direction towards which to compute next value
-		/// \return next representable value after \a from in direction towards \a to
-//		template<typename T> typename enable<half,T>::type nexttoward(T from, long double to) { return functions::nexttoward(from, to); }
-		inline half nexttoward(half from, long double to) { return functions::nexttoward(from, to); }
-		inline half nexttoward(expr from, long double to) { return functions::nexttoward(from, to); }
-
-		/// Take sign.
-		/// \param x value to change sign for
-		/// \param y value to take sign from
-		/// \return value equal to \a x in magnitude and to \a y in sign
-//		template<typename T,typename U> typename enable<half,T,U>::type copysign(T x, U y) { return functions::copysign(x, y); }
-		inline half copysign(half x, half y) { return functions::copysign(x, y); }
-		inline half copysign(half x, expr y) { return functions::copysign(x, y); }
-		inline half copysign(expr x, half y) { return functions::copysign(x, y); }
-		inline half copysign(expr x, expr y) { return functions::copysign(x, y); }
-
-		/// \}
-		/// \name Floating point classification
-		/// \{
-
-
-		/// Classify floating point value.
-		/// \param arg number to classify
-		/// \retval FP_ZERO for positive and negative zero
-		/// \retval FP_SUBNORMAL for subnormal numbers
-		/// \retval FP_INFINITY for positive and negative infinity
-		/// \retval FP_NAN for NaNs
-		/// \retval FP_NORMAL for all other (normal) values
-//		template<typename T> typename enable<int,T>::type fpclassify(T arg) { return functions::fpclassify(arg); }
-		inline int fpclassify(half arg) { return functions::fpclassify(arg); }
-		inline int fpclassify(expr arg) { return functions::fpclassify(arg); }
-
-		/// Check if finite number.
-		/// \param arg number to check
-		/// \retval true if neither infinity nor NaN
-		/// \retval false else
-//		template<typename T> typename enable<bool,T>::type isfinite(T arg) { return functions::isfinite(arg); }
-		inline bool isfinite(half arg) { return functions::isfinite(arg); }
-		inline bool isfinite(expr arg) { return functions::isfinite(arg); }
-
-		/// Check for infinity.
-		/// \param arg number to check
-		/// \retval true for positive or negative infinity
-		/// \retval false else
-//		template<typename T> typename enable<bool,T>::type isinf(T arg) { return functions::isinf(arg); }
-		inline bool isinf(half arg) { return functions::isinf(arg); }
-		inline bool isinf(expr arg) { return functions::isinf(arg); }
-
-		/// Check for NaN.
-		/// \param arg number to check
-		/// \retval true for NaNs
-		/// \retval false else
-//		template<typename T> typename enable<bool,T>::type isnan(T arg) { return functions::isnan(arg); }
-		inline bool isnan(half arg) { return functions::isnan(arg); }
-		inline bool isnan(expr arg) { return functions::isnan(arg); }
-
-		/// Check if normal number.
-		/// \param arg number to check
-		/// \retval true if normal number
-		/// \retval false if either subnormal, zero, infinity or NaN
-//		template<typename T> typename enable<bool,T>::type isnormal(T arg) { return functions::isnormal(arg); }
-		inline bool isnormal(half arg) { return functions::isnormal(arg); }
-		inline bool isnormal(expr arg) { return functions::isnormal(arg); }
-
-		/// Check sign.
-		/// \param arg number to check
-		/// \retval true for negative number
-		/// \retval false for positive number
-//		template<typename T> typename enable<bool,T>::type signbit(T arg) { return functions::signbit(arg); }
-		inline bool signbit(half arg) { return functions::signbit(arg); }
-		inline bool signbit(expr arg) { return functions::signbit(arg); }
-
-		/// \}
-		/// \name Comparison
-		/// \{
-
-		/// Comparison for greater than.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if \a x greater than \a y
-		/// \retval false else
-//		template<typename T,typename U> typename enable<bool,T,U>::type isgreater(T x, U y) { return functions::isgreater(x, y); }
-		inline bool isgreater(half x, half y) { return functions::isgreater(x, y); }
-		inline bool isgreater(half x, expr y) { return functions::isgreater(x, y); }
-		inline bool isgreater(expr x, half y) { return functions::isgreater(x, y); }
-		inline bool isgreater(expr x, expr y) { return functions::isgreater(x, y); }
-
-		/// Comparison for greater equal.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if \a x greater equal \a y
-		/// \retval false else
-//		template<typename T,typename U> typename enable<bool,T,U>::type isgreaterequal(T x, U y) { return functions::isgreaterequal(x, y); }
-		inline bool isgreaterequal(half x, half y) { return functions::isgreaterequal(x, y); }
-		inline bool isgreaterequal(half x, expr y) { return functions::isgreaterequal(x, y); }
-		inline bool isgreaterequal(expr x, half y) { return functions::isgreaterequal(x, y); }
-		inline bool isgreaterequal(expr x, expr y) { return functions::isgreaterequal(x, y); }
-
-		/// Comparison for less than.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if \a x less than \a y
-		/// \retval false else
-//		template<typename T,typename U> typename enable<bool,T,U>::type isless(T x, U y) { return functions::isless(x, y); }
-		inline bool isless(half x, half y) { return functions::isless(x, y); }
-		inline bool isless(half x, expr y) { return functions::isless(x, y); }
-		inline bool isless(expr x, half y) { return functions::isless(x, y); }
-		inline bool isless(expr x, expr y) { return functions::isless(x, y); }
-
-		/// Comparison for less equal.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if \a x less equal \a y
-		/// \retval false else
-//		template<typename T,typename U> typename enable<bool,T,U>::type islessequal(T x, U y) { return functions::islessequal(x, y); }
-		inline bool islessequal(half x, half y) { return functions::islessequal(x, y); }
-		inline bool islessequal(half x, expr y) { return functions::islessequal(x, y); }
-		inline bool islessequal(expr x, half y) { return functions::islessequal(x, y); }
-		inline bool islessequal(expr x, expr y) { return functions::islessequal(x, y); }
-
-		/// Comarison for less or greater.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if either less or greater
-		/// \retval false else
-//		template<typename T,typename U> typename enable<bool,T,U>::type islessgreater(T x, U y) { return functions::islessgreater(x, y); }
-		inline bool islessgreater(half x, half y) { return functions::islessgreater(x, y); }
-		inline bool islessgreater(half x, expr y) { return functions::islessgreater(x, y); }
-		inline bool islessgreater(expr x, half y) { return functions::islessgreater(x, y); }
-		inline bool islessgreater(expr x, expr y) { return functions::islessgreater(x, y); }
-
-		/// Check if unordered.
-		/// \param x first operand
-		/// \param y second operand
-		/// \retval true if unordered (one or two NaN operands)
-		/// \retval false else
-//		template<typename T,typename U> typename enable<bool,T,U>::type isunordered(T x, U y) { return functions::isunordered(x, y); }
-		inline bool isunordered(half x, half y) { return functions::isunordered(x, y); }
-		inline bool isunordered(half x, expr y) { return functions::isunordered(x, y); }
-		inline bool isunordered(expr x, half y) { return functions::isunordered(x, y); }
-		inline bool isunordered(expr x, expr y) { return functions::isunordered(x, y); }
-
-		/// \name Casting
-		/// \{
-
-		/// Cast to or from half-precision floating point number.
-		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
-		/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
-		/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
-		/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
-		/// that a `static_cast` would otherwise do. It uses the default rounding mode.
-		///
-		/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
-		/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
-		/// error and casting between [half](\ref half_float::half)s is just a no-op.
-		/// \tparam T destination type (half or built-in arithmetic type)
-		/// \tparam U source type (half or built-in arithmetic type)
-		/// \param arg value to cast
-		/// \return \a arg converted to destination type
-		template<typename T,typename U> typename half_caster<T,U>::type half_cast(U arg) { return half_caster<T,U>::cast(arg); }
-
-		/// Cast to or from half-precision floating point number.
-		/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
-		/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
-		/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
-		/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
-		/// that a `static_cast` would otherwise do.
-		///
-		/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
-		/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
-		/// error and casting between [half](\ref half_float::half)s is just a no-op.
-		/// \tparam T destination type (half or built-in arithmetic type)
-		/// \tparam R rounding mode to use.
-		/// \tparam U source type (half or built-in arithmetic type)
-		/// \param arg value to cast
-		/// \return \a arg converted to destination type
-		template<typename T,std::float_round_style R,typename U> typename half_caster<T,U,R>::type half_cast(U arg)
-			{ return half_caster<T,U,R>::cast(arg); }
-		/// \}
 	}
 
-	using detail::operator==;
-	using detail::operator!=;
-	using detail::operator<;
-	using detail::operator>;
-	using detail::operator<=;
-	using detail::operator>=;
-	using detail::operator+;
-	using detail::operator-;
-	using detail::operator*;
-	using detail::operator/;
-	using detail::operator<<;
-	using detail::operator>>;
+	/// \name Comparison operators
+	/// \{
 
-	using detail::abs;
-	using detail::fabs;
-	using detail::fmod;
-	using detail::remainder;
-	using detail::remquo;
-	using detail::fma;
-	using detail::fmax;
-	using detail::fmin;
-	using detail::fdim;
-	using detail::nanh;
-	using detail::exp;
-	using detail::expm1;
-	using detail::exp2;
-	using detail::log;
-	using detail::log10;
-	using detail::log1p;
-	using detail::log2;
-	using detail::sqrt;
-	using detail::cbrt;
-	using detail::hypot;
-	using detail::pow;
-	using detail::sin;
-	using detail::cos;
-	using detail::tan;
-	using detail::asin;
-	using detail::acos;
-	using detail::atan;
-	using detail::atan2;
-	using detail::sinh;
-	using detail::cosh;
-	using detail::tanh;
-	using detail::asinh;
-	using detail::acosh;
-	using detail::atanh;
-	using detail::erf;
-	using detail::erfc;
-	using detail::lgamma;
-	using detail::tgamma;
-	using detail::ceil;
-	using detail::floor;
-	using detail::trunc;
-	using detail::round;
-	using detail::lround;
-	using detail::nearbyint;
-	using detail::rint;
-	using detail::lrint;
+	/// Comparison for equality.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if operands equal
+	/// \retval false else
+	inline bool operator==(half x, half y) { return detail::functions::isequal(x, y); }
+
+	/// Comparison for inequality.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if operands not equal
+	/// \retval false else
+	inline bool operator!=(half x, half y) { return detail::functions::isnotequal(x, y); }
+
+	/// Comparison for less than.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if \a x less than \a y
+	/// \retval false else
+	inline bool operator<(half x, half y) { return detail::functions::isless(x, y); }
+
+	/// Comparison for greater than.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if \a x greater than \a y
+	/// \retval false else
+	inline bool operator>(half x, half y) { return detail::functions::isgreater(x, y); }
+
+	/// Comparison for less equal.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if \a x less equal \a y
+	/// \retval false else
+	inline bool operator<=(half x, half y) { return detail::functions::islessequal(x, y); }
+
+	/// Comparison for greater equal.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if \a x greater equal \a y
+	/// \retval false else
+	inline bool operator>=(half x, half y) { return detail::functions::isgreaterequal(x, y); }
+
+	/// \}
+	/// \name Arithmetic operators
+	/// \{
+
+	/// Add halfs.
+	/// \param x left operand
+	/// \param y right operand
+	/// \return sum of half expressions
+	inline half operator+(half x, half y) { return detail::functions::plus(x, y); }
+
+	/// Subtract halfs.
+	/// \param x left operand
+	/// \param y right operand
+	/// \return difference of half expressions
+	inline half operator-(half x, half y) { return detail::functions::minus(x, y); }
+
+	/// Multiply halfs.
+	/// \param x left operand
+	/// \param y right operand
+	/// \return product of half expressions
+	inline half operator*(half x, half y) { return detail::functions::multiplies(x, y); }
+
+	/// Divide halfs.
+	/// \param x left operand
+	/// \param y right operand
+	/// \return quotient of half expressions
+	inline half operator/(half x, half y) { return detail::functions::divides(x, y); }
+
+	/// Identity.
+	/// \param arg operand
+	/// \return uncahnged operand
+	inline HALF_CONSTEXPR half operator+(half arg) { return arg; }
+
+	/// Negation.
+	/// \param arg operand
+	/// \return negated operand
+	inline HALF_CONSTEXPR half operator-(half arg) { return detail::functions::negate(arg); }
+
+	/// \}
+	/// \name Input and output
+	/// \{
+
+	/// Output operator.
+	/// \param out output stream to write into
+	/// \param arg half expression to write
+	/// \return reference to output stream
+	template<typename charT,typename traits> std::basic_ostream<charT,traits>&
+		operator<<(std::basic_ostream<charT,traits> &out, half arg) { return detail::functions::write(out, arg); }
+
+	/// Input operator.
+	/// \param in input stream to read from
+	/// \param arg half to read into
+	/// \return reference to input stream
+	template<typename charT,typename traits> std::basic_istream<charT,traits>&
+		operator>>(std::basic_istream<charT,traits> &in, half &arg) { return detail::functions::read(in, arg); }
+
+	/// \}
+	/// \name Basic mathematical operations
+	/// \{
+
+	/// Absolute value.
+	/// \param arg operand
+	/// \return absolute value of \a arg
+	inline half abs(half arg) { return detail::functions::fabs(arg); }
+
+	/// Absolute value.
+	/// \param arg operand
+	/// \return absolute value of \a arg
+	inline half fabs(half arg) { return detail::functions::fabs(arg); }
+
+	/// Remainder of division.
+	/// \param x first operand
+	/// \param y second operand
+	/// \return remainder of floating point division.
+	inline half fmod(half x, half y) { return detail::functions::fmod(x, y); }
+
+	/// Remainder of division.
+	/// \param x first operand
+	/// \param y second operand
+	/// \return remainder of floating point division.
+	inline half remainder(half x, half y) { return detail::functions::remainder(x, y); }
+
+	/// Remainder of division.
+	/// \param x first operand
+	/// \param y second operand
+	/// \param quo address to store some bits of quotient at
+	/// \return remainder of floating point division.
+	inline half remquo(half x, half y, int *quo) { return detail::functions::remquo(x, y, quo); }
+
+	/// Fused multiply add.
+	/// \param x first operand
+	/// \param y second operand
+	/// \param z third operand
+	/// \return ( \a x * \a y ) + \a z rounded as one operation.
+	inline half fma(half x, half y, half z) { return detail::functions::fma(x, y, z); }
+
+	/// Maximum of half expressions.
+	/// \param x first operand
+	/// \param y second operand
+	/// \return maximum of operands
+	inline half fmax(half x, half y) { return detail::functions::fmax(x, y); }
+
+	/// Minimum of half expressions.
+	/// \param x first operand
+	/// \param y second operand
+	/// \return minimum of operands
+	inline half fmin(half x, half y) { return detail::functions::fmin(x, y); }
+
+	/// Positive difference.
+	/// \param x first operand
+	/// \param y second operand
+	/// \return \a x - \a y or 0 if difference negative
+	inline half fdim(half x, half y) { return detail::functions::fdim(x, y); }
+
+	/// Get NaN value.
+	/// \param arg descriptive string (ignored)
+	/// \return quiet NaN
+	inline half nanh(const char *arg) { return detail::functions::nanh(arg); }
+
+	/// \}
+	/// \name Exponential functions
+	/// \{
+
+	/// Exponential function.
+	/// \param arg function argument
+	/// \return e raised to \a arg
+	inline half exp(half arg) { return detail::functions::exp(arg); }
+
+	/// Exponential minus one.
+	/// \param arg function argument
+	/// \return e raised to \a arg subtracted by 1
+	inline half expm1(half arg) { return detail::functions::expm1(arg); }
+
+	/// Binary exponential.
+	/// \param arg function argument
+	/// \return 2 raised to \a arg
+	inline half exp2(half arg) { return detail::functions::exp2(arg); }
+
+	/// Natural logorithm.
+	/// \param arg function argument
+	/// \return logarithm of \a arg to base e
+	inline half log(half arg) { return detail::functions::log(arg); }
+
+	/// Common logorithm.
+	/// \param arg function argument
+	/// \return logarithm of \a arg to base 10
+	inline half log10(half arg) { return detail::functions::log10(arg); }
+
+	/// Natural logorithm.
+	/// \param arg function argument
+	/// \return logarithm of \a arg plus 1 to base e
+	inline half log1p(half arg) { return detail::functions::log1p(arg); }
+
+	/// Binary logorithm.
+	/// \param arg function argument
+	/// \return logarithm of \a arg to base 2
+	inline half log2(half arg) { return detail::functions::log2(arg); }
+
+	/// \}
+	/// \name Power functions
+	/// \{
+
+	/// Square root.
+	/// \param arg function argument
+	/// \return square root of \a arg
+	inline half sqrt(half arg) { return detail::functions::sqrt(arg); }
+
+	/// Cubic root.
+	/// \param arg function argument
+	/// \return cubic root of \a arg
+	inline half cbrt(half arg) { return detail::functions::cbrt(arg); }
+
+	/// Hypotenuse function.
+	/// \param x first argument
+	/// \param y second argument
+	/// \return square root of sum of squares without internal over- or underflows
+	inline half hypot(half x, half y) { return detail::functions::hypot(x, y); }
+
+	/// Power function.
+	/// \param base first argument
+	/// \param exp second argument
+	/// \return \a base raised to \a exp
+	inline half pow(half base, half exp) { return detail::functions::pow(base, exp); }
+
+	/// \}
+	/// \name Trigonometric functions
+	/// \{
+
+	/// Sine function.
+	/// \param arg function argument
+	/// \return sine value of \a arg
+	inline half sin(half arg) { return detail::functions::sin(arg); }
+
+	/// Cosine function.
+	/// \param arg function argument
+	/// \return cosine value of \a arg
+	inline half cos(half arg) { return detail::functions::cos(arg); }
+
+	/// Tangent function.
+	/// \param arg function argument
+	/// \return tangent value of \a arg
+	inline half tan(half arg) { return detail::functions::tan(arg); }
+
+	/// Arc sine.
+	/// \param arg function argument
+	/// \return arc sine value of \a arg
+	inline half asin(half arg) { return detail::functions::asin(arg); }
+
+	/// Arc cosine function.
+	/// \param arg function argument
+	/// \return arc cosine value of \a arg
+	inline half acos(half arg) { return detail::functions::acos(arg); }
+
+	/// Arc tangent function.
+	/// \param arg function argument
+	/// \return arc tangent value of \a arg
+	inline half atan(half arg) { return detail::functions::atan(arg); }
+
+	/// Arc tangent function.
+	/// \param x first argument
+	/// \param y second argument
+	/// \return arc tangent value
+	inline half atan2(half x, half y) { return detail::functions::atan2(x, y); }
+
+	/// \}
+	/// \name Hyperbolic functions
+	/// \{
+
+	/// Hyperbolic sine.
+	/// \param arg function argument
+	/// \return hyperbolic sine value of \a arg
+	inline half sinh(half arg) { return detail::functions::sinh(arg); }
+
+	/// Hyperbolic cosine.
+	/// \param arg function argument
+	/// \return hyperbolic cosine value of \a arg
+	inline half cosh(half arg) { return detail::functions::cosh(arg); }
+
+	/// Hyperbolic tangent.
+	/// \param arg function argument
+	/// \return hyperbolic tangent value of \a arg
+	inline half tanh(half arg) { return detail::functions::tanh(arg); }
+
+	/// Hyperbolic area sine.
+	/// \param arg function argument
+	/// \return area sine value of \a arg
+	inline half asinh(half arg) { return detail::functions::asinh(arg); }
+
+	/// Hyperbolic area cosine.
+	/// \param arg function argument
+	/// \return area cosine value of \a arg
+	inline half acosh(half arg) { return detail::functions::acosh(arg); }
+
+	/// Hyperbolic area tangent.
+	/// \param arg function argument
+	/// \return area tangent value of \a arg
+	inline half atanh(half arg) { return detail::functions::atanh(arg); }
+
+	/// \}
+	/// \name Error and gamma functions
+	/// \{
+
+	/// Error function.
+	/// \param arg function argument
+	/// \return error function value of \a arg
+	inline half erf(half arg) { return detail::functions::erf(arg); }
+
+	/// Complementary error function.
+	/// \param arg function argument
+	/// \return 1 minus error function value of \a arg
+	inline half erfc(half arg) { return detail::functions::erfc(arg); }
+
+	/// Natural logarithm of gamma function.
+	/// \param arg function argument
+	/// \return natural logarith of gamma function for \a arg
+	inline half lgamma(half arg) { return detail::functions::lgamma(arg); }
+
+	/// Gamma function.
+	/// \param arg function argument
+	/// \return gamma function value of \a arg
+	inline half tgamma(half arg) { return detail::functions::tgamma(arg); }
+
+	/// \}
+	/// \name Rounding
+	/// \{
+
+	/// Nearest integer not less than half value.
+	/// \param arg half to round
+	/// \return nearest integer not less than \a arg
+	inline half ceil(half arg) { return detail::functions::ceil(arg); }
+
+	/// Nearest integer not greater than half value.
+	/// \param arg half to round
+	/// \return nearest integer not greater than \a arg
+	inline half floor(half arg) { return detail::functions::floor(arg); }
+
+	/// Nearest integer not greater in magnitude than half value.
+	/// \param arg half to round
+	/// \return nearest integer not greater in magnitude than \a arg
+	inline half trunc(half arg) { return detail::functions::trunc(arg); }
+
+	/// Nearest integer.
+	/// \param arg half to round
+	/// \return nearest integer, rounded away from zero in half-way cases
+	inline half round(half arg) { return detail::functions::round(arg); }
+
+	/// Nearest integer.
+	/// \param arg half to round
+	/// \return nearest integer, rounded away from zero in half-way cases
+	inline long lround(half arg) { return detail::functions::lround(arg); }
+
+	/// Nearest integer using half's internal rounding mode.
+	/// \param arg half expression to round
+	/// \return nearest integer using default rounding mode
+	inline half nearbyint(half arg) { return detail::functions::rint(arg); }
+
+	/// Nearest integer using half's internal rounding mode.
+	/// \param arg half expression to round
+	/// \return nearest integer using default rounding mode
+	inline half rint(half arg) { return detail::functions::rint(arg); }
+
+	/// Nearest integer using half's internal rounding mode.
+	/// \param arg half expression to round
+	/// \return nearest integer using default rounding mode
+	inline long lrint(half arg) { return detail::functions::lrint(arg); }
 #if HALF_ENABLE_CPP11_LONG_LONG
-	using detail::llround;
-	using detail::llrint;
-#endif
-	using detail::frexp;
-	using detail::ldexp;
-	using detail::modf;
-	using detail::scalbn;
-	using detail::scalbln;
-	using detail::ilogb;
-	using detail::logb;
-	using detail::nextafter;
-	using detail::nexttoward;
-	using detail::copysign;
-	using detail::fpclassify;
-	using detail::isfinite;
-	using detail::isinf;
-	using detail::isnan;
-	using detail::isnormal;
-	using detail::signbit;
-	using detail::isgreater;
-	using detail::isgreaterequal;
-	using detail::isless;
-	using detail::islessequal;
-	using detail::islessgreater;
-	using detail::isunordered;
+	/// Nearest integer.
+	/// \param arg half to round
+	/// \return nearest integer, rounded away from zero in half-way cases
+	inline long long llround(half arg) { return detail::functions::llround(arg); }
 
-	using detail::half_cast;
+	/// Nearest integer using half's internal rounding mode.
+	/// \param arg half expression to round
+	/// \return nearest integer using default rounding mode
+	inline long long llrint(half arg) { return detail::functions::llrint(arg); }
+#endif
+
+	/// \}
+	/// \name Floating point manipulation
+	/// \{
+
+	/// Decompress floating point number.
+	/// \param arg number to decompress
+	/// \param exp address to store exponent at
+	/// \return significant in range [0.5, 1)
+	inline half frexp(half arg, int *exp) { return detail::functions::frexp(arg, exp); }
+
+	/// Multiply by power of two.
+	/// \param arg number to modify
+	/// \param exp power of two to multiply with
+	/// \return \a arg multplied by 2 raised to \a exp
+	inline half ldexp(half arg, int exp) { return detail::functions::scalbln(arg, exp); }
+
+	/// Extract integer and fractional parts.
+	/// \param arg number to decompress
+	/// \param iptr address to store integer part at
+	/// \return fractional part
+	inline half modf(half arg, half *iptr) { return detail::functions::modf(arg, iptr); }
+
+	/// Multiply by power of two.
+	/// \param arg number to modify
+	/// \param exp power of two to multiply with
+	/// \return \a arg multplied by 2 raised to \a exp
+	inline half scalbn(half arg, int exp) { return detail::functions::scalbln(arg, exp); }
+
+	/// Multiply by power of two.
+	/// \param arg number to modify
+	/// \param exp power of two to multiply with
+	/// \return \a arg multplied by 2 raised to \a exp
+	inline half scalbln(half arg, long exp) { return detail::functions::scalbln(arg, exp); }
+
+	/// Extract exponent.
+	/// \param arg number to query
+	/// \return floating point exponent
+	/// \retval FP_ILOGB0 for zero
+	/// \retval FP_ILOGBNAN for NaN
+	/// \retval MAX_INT for infinity
+	inline int ilogb(half arg) { return detail::functions::ilogb(arg); }
+
+	/// Extract exponent.
+	/// \param arg number to query
+	/// \return floating point exponent
+	inline half logb(half arg) { return detail::functions::logb(arg); }
+
+	/// Next representable value.
+	/// \param from value to compute next representable value for
+	/// \param to direction towards which to compute next value
+	/// \return next representable value after \a from in direction towards \a to
+	inline half nextafter(half from, half to) { return detail::functions::nextafter(from, to); }
+
+	/// Next representable value.
+	/// \param from value to compute next representable value for
+	/// \param to direction towards which to compute next value
+	/// \return next representable value after \a from in direction towards \a to
+	inline half nexttoward(half from, long double to) { return detail::functions::nexttoward(from, to); }
+
+	/// Take sign.
+	/// \param x value to change sign for
+	/// \param y value to take sign from
+	/// \return value equal to \a x in magnitude and to \a y in sign
+	inline half copysign(half x, half y) { return detail::functions::copysign(x, y); }
+
+	/// \}
+	/// \name Floating point classification
+	/// \{
+
+
+	/// Classify floating point value.
+	/// \param arg number to classify
+	/// \retval FP_ZERO for positive and negative zero
+	/// \retval FP_SUBNORMAL for subnormal numbers
+	/// \retval FP_INFINITY for positive and negative infinity
+	/// \retval FP_NAN for NaNs
+	/// \retval FP_NORMAL for all other (normal) values
+	inline int fpclassify(half arg) { return detail::functions::fpclassify(arg); }
+
+	/// Check if finite number.
+	/// \param arg number to check
+	/// \retval true if neither infinity nor NaN
+	/// \retval false else
+	inline bool isfinite(half arg) { return detail::functions::isfinite(arg); }
+
+	/// Check for infinity.
+	/// \param arg number to check
+	/// \retval true for positive or negative infinity
+	/// \retval false else
+	inline bool isinf(half arg) { return detail::functions::isinf(arg); }
+
+	/// Check for NaN.
+	/// \param arg number to check
+	/// \retval true for NaNs
+	/// \retval false else
+	inline bool isnan(half arg) { return detail::functions::isnan(arg); }
+
+	/// Check if normal number.
+	/// \param arg number to check
+	/// \retval true if normal number
+	/// \retval false if either subnormal, zero, infinity or NaN
+	inline bool isnormal(half arg) { return detail::functions::isnormal(arg); }
+
+	/// Check sign.
+	/// \param arg number to check
+	/// \retval true for negative number
+	/// \retval false for positive number
+	inline bool signbit(half arg) { return detail::functions::signbit(arg); }
+
+	/// \}
+	/// \name Comparison
+	/// \{
+
+	/// Comparison for greater than.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if \a x greater than \a y
+	/// \retval false else
+	inline bool isgreater(half x, half y) { return detail::functions::isgreater(x, y); }
+
+	/// Comparison for greater equal.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if \a x greater equal \a y
+	/// \retval false else
+	inline bool isgreaterequal(half x, half y) { return detail::functions::isgreaterequal(x, y); }
+
+	/// Comparison for less than.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if \a x less than \a y
+	/// \retval false else
+	inline bool isless(half x, half y) { return detail::functions::isless(x, y); }
+
+	/// Comparison for less equal.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if \a x less equal \a y
+	/// \retval false else
+	inline bool islessequal(half x, half y) { return detail::functions::islessequal(x, y); }
+
+	/// Comarison for less or greater.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if either less or greater
+	/// \retval false else
+	inline bool islessgreater(half x, half y) { return detail::functions::islessgreater(x, y); }
+
+	/// Check if unordered.
+	/// \param x first operand
+	/// \param y second operand
+	/// \retval true if unordered (one or two NaN operands)
+	/// \retval false else
+	inline bool isunordered(half x, half y) { return detail::functions::isunordered(x, y); }
+
+	/// \name Casting
+	/// \{
+
+	/// Cast to or from half-precision floating point number.
+	/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
+	/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
+	/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
+	/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
+	/// that a `static_cast` would otherwise do. It uses the default rounding mode.
+	///
+	/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
+	/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
+	/// error and casting between [half](\ref half_float::half)s is just a no-op.
+	/// \tparam T destination type (half or built-in arithmetic type)
+	/// \tparam U source type (half or built-in arithmetic type)
+	/// \param arg value to cast
+	/// \return \a arg converted to destination type
+	template<typename T,typename U> typename detail::half_caster<T,U>::type half_cast(U arg) { return detail::half_caster<T,U>::cast(arg); }
+
+	/// Cast to or from half-precision floating point number.
+	/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
+	/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
+	/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
+	/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
+	/// that a `static_cast` would otherwise do.
+	///
+	/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
+	/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
+	/// error and casting between [half](\ref half_float::half)s is just a no-op.
+	/// \tparam T destination type (half or built-in arithmetic type)
+	/// \tparam R rounding mode to use.
+	/// \tparam U source type (half or built-in arithmetic type)
+	/// \param arg value to cast
+	/// \return \a arg converted to destination type
+	template<typename T,std::float_round_style R,typename U> typename detail::half_caster<T,U,R>::type half_cast(U arg)
+		{ return detail::half_caster<T,U,R>::cast(arg); }
+	/// \}
 }
 
 
