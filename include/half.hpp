@@ -1227,7 +1227,7 @@ namespace half_float
 			static half remainder(float x, float y)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::remainder(x, y));
+				return half(std::remainder(x, y));
 			#else
 				if(builtin_isnan(x) || builtin_isnan(y))
 					return half(binary, 0x7FFF);
@@ -1258,7 +1258,7 @@ namespace half_float
 			static half remquo(float x, float y, int *quo)
 			{
 			#if HALF_ENABLE_CPP11_CMATH
-				return expr(std::remquo(x, y, quo));
+				return half(std::remquo(x, y, quo));
 			#else
 				if(builtin_isnan(x) || builtin_isnan(y))
 					return half(std::numeric_limits<float>::quiet_NaN());
@@ -1422,13 +1422,12 @@ namespace half_float
 				int abs = arg.data_ & 0x7FFF;
 				if(!abs || abs >= 0x7C00)
 					return arg;
-				int exp = 15;
+				int exp = 15, g, s;
 				for(; abs<0x400; abs<<=1,--exp) ;
 				exp += abs >> 10;
-				long m = ((abs&0x3FF)|0x400L) << ((exp&1)+1), r = m << 11, bit = 1L << 22;
+				long m = 0, r = ((abs&0x3FF)|0x400L) << ((exp&1)+12);
 				exp /= 2;
-				m = 0;
-				for(long bit=0x400000; bit; bit>>=2)
+				for(long bit=0x400000L; bit; bit>>=2)
 				{
 					if(r < m+bit)
 						m >>= 1;
@@ -1438,7 +1437,11 @@ namespace half_float
 						m = (m>>1) + bit;
 					}
 				}
-				int g = m & 1, s = r != 0;
+				if(half::round_style == std::round_to_nearest || half::round_style == std::round_toward_infinity)
+				{
+					g = m & 1;
+					s = r != 0;
+				}
 				uint16 value = (exp<<10) | ((m>>1)&0x3FF);
 				if(half::round_style == std::round_to_nearest)
 					#if HALF_ROUND_TIES_TO_EVEN
@@ -1447,9 +1450,7 @@ namespace half_float
 						value += g;
 					#endif
 				else if(half::round_style == std::round_toward_infinity)
-					value += ~(value>>15) & (g|s);
-				else if(half::round_style == std::round_toward_neg_infinity)
-					value += (value>>15) & (g|s);
+					value += g | s;
 				return half(binary, value);
 			}
 
@@ -1472,14 +1473,99 @@ namespace half_float
 			/// \param x first argument
 			/// \param y second argument
 			/// \return function value
-			static half hypot(float x, float y)
+			static half hypot(half x, half y)
 			{
-			#if HALF_ENABLE_CPP11_CMATH
-				return half(std::hypot(x, y));
-			#else
-				return half((builtin_isinf(x) || builtin_isinf(y)) ? std::numeric_limits<float>::infinity() : 
-					static_cast<float>(std::sqrt(static_cast<double>(x)*x+static_cast<double>(y)*y)));
-			#endif
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx == 0x7C00 || absy == 0x7C00)
+					return half(binary, 0x7C00);
+				if(absx > 0x7C00)
+					return x;
+				if(absy > 0x7C00)
+					return y;
+				if(!absx)
+					return half(binary, absy);
+				if(!absy)
+					return half(binary, absx);
+				int expx = 0, expy = 0;
+				for(; absx<0x400; absx<<=1,--expx) ;
+				for(; absy<0x400; absy<<=1,--expy) ;
+				long mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
+				mx *= mx;
+				my *= my;
+				int ix = mx >> 21, iy = my >> 21;
+				expx = 2*(expx+(absx>>10)) - 15 + ix;
+				expy = 2*(expy+(absy>>10)) - 15 + iy;
+				mx <<= 1 - ix;
+				my <<= 1 - iy;
+				if(expy > expx)
+				{
+					std::swap(mx, my);
+					std::swap(expx, expy);
+				}
+				int exp = expx, d = expx - expy;
+				mx <<= 1;
+				if(d < 22)
+				{
+					int s = 0;
+					for(; d; --d,my>>=1)
+						s |= my & 1;
+					my = (my<<1) | s;
+				}
+				else
+					my = 1;
+				int r = mx + my, m = 0, g, s;
+//				r <<= 2;
+				if(r > 0x1FFFFFF)
+				{
+					r = (r|((r&1)<<1)) >> 1;
+					++exp;
+				}
+				r <<= (exp+=15) & 1;
+				exp /= 2;
+				for(long bit=0x400000L/*<<2*/; bit; bit>>=2)
+				{
+					if(r < m+bit)
+						m >>= 1;
+					else
+					{
+						r -= m + bit;
+						m = (m>>1) + bit;
+					}
+				}
+				if(exp > 30)
+					return half(binary, 0x7BFF+(half::round_style!=std::round_toward_zero && half::round_style!=std::round_toward_neg_infinity));
+				if(exp < -10)
+					return half(binary, half::round_style==std::round_toward_infinity);
+				if(half::round_style == std::round_to_nearest || half::round_style == std::round_toward_infinity)
+				{
+					s = r != 0;
+//					s |= m & 1;
+//					m >>= 1;
+					g = m & 1;
+				}
+				uint16 value;
+				if(exp > 0)
+					value = (exp<<10) | ((m>>1)&0x3FF);
+				else if(half::round_style == std::round_to_nearest || half::round_style == std::round_toward_infinity)
+				{
+					m >>= 1;
+					s |= g;
+					for(; exp; ++exp,m>>=1)
+						s |= m & 1;
+					g = m & 1;
+					value = m >> 1;
+				}
+				else
+					value = m >> (2-exp);
+				if(half::round_style == std::round_to_nearest)
+					#if HALF_ROUND_TIES_TO_EVEN
+						value += g & (s|value);
+					#else
+						value += g;
+					#endif
+				else if(half::round_style == std::round_toward_infinity)
+					value += g | s;
+				return half(binary, value);
 			}
 
 			/// Power implementation.

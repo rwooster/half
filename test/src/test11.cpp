@@ -58,6 +58,7 @@
 	bool success = binary_test(#func, [&](half x, half y) -> bool { \
 		half a = func(x, y), b(std::func(static_cast<float>(x), static_cast<float>(y))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
+		/*std::cout << x << " - " << y << " = " << a << '(' << std::hex << h2b(a) << ") - " << b << '(' << h2b(b) << ") - " << error << '\n' << std::dec;*/ \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); } return equal; }); \
 	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
 
@@ -169,11 +170,11 @@ public:
 		unary_test("unary plus", [](half arg) { return comp(+arg, arg); });
 		unary_test("unary minus", [](half arg) { return comp(-arg, static_cast<half>(-static_cast<float>(arg))); });
 
-*/		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b))); });
+		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b))); });
 		binary_test("subtraction", [](half a, half b) { return comp(a-b, static_cast<half>(static_cast<float>(a)-static_cast<float>(b))); });
 		binary_test("multiplication", [](half a, half b) { return comp(a*b, static_cast<half>(static_cast<float>(a)*static_cast<float>(b))); });
 		binary_test("division", [](half a, half b) { return comp(a/b, static_cast<half>(static_cast<float>(a)/static_cast<float>(b))); });
-/*		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
+		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
 		binary_test("not equal", [](half a, half b) { return (a!=b) == (static_cast<float>(a)!=static_cast<float>(b)); });
 		binary_test("less", [](half a, half b) { return (a<b) == (static_cast<float>(a)<static_cast<float>(b)); });
 		binary_test("greater", [](half a, half b) { return (a>b) == (static_cast<float>(a)>static_cast<float>(b)); });
@@ -191,10 +192,10 @@ public:
 		UNARY_MATH_TEST(exp);
 		UNARY_MATH_TEST(log);
 		UNARY_MATH_TEST(log10);
-*/
+
 		//test power functions
 		UNARY_MATH_TEST(sqrt);
-/*		BINARY_MATH_TEST(pow);
+		BINARY_MATH_TEST(pow);
 
 		//test trig functions
 		UNARY_MATH_TEST(sin);
@@ -260,8 +261,8 @@ public:
 
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
-		BINARY_MATH_TEST(hypot);
-
+*/		BINARY_MATH_TEST(hypot);
+/*
 		//test hyp functions
 		UNARY_MATH_TEST(asinh);
 		UNARY_MATH_TEST(acosh);
