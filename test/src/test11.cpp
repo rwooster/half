@@ -144,7 +144,7 @@ public:
 	unsigned int test()
 	{
 		//test size
-		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
+/*		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
 
 		//test conversion
 		unary_test("conversion", [](half arg) { return comp(static_cast<half>(static_cast<float>(arg)), arg); });
@@ -169,11 +169,11 @@ public:
 		unary_test("unary plus", [](half arg) { return comp(+arg, arg); });
 		unary_test("unary minus", [](half arg) { return comp(-arg, static_cast<half>(-static_cast<float>(arg))); });
 
-		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b))); });
+*/		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b))); });
 		binary_test("subtraction", [](half a, half b) { return comp(a-b, static_cast<half>(static_cast<float>(a)-static_cast<float>(b))); });
 		binary_test("multiplication", [](half a, half b) { return comp(a*b, static_cast<half>(static_cast<float>(a)*static_cast<float>(b))); });
 		binary_test("division", [](half a, half b) { return comp(a/b, static_cast<half>(static_cast<float>(a)/static_cast<float>(b))); });
-		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
+/*		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
 		binary_test("not equal", [](half a, half b) { return (a!=b) == (static_cast<float>(a)!=static_cast<float>(b)); });
 		binary_test("less", [](half a, half b) { return (a<b) == (static_cast<float>(a)<static_cast<float>(b)); });
 		binary_test("greater", [](half a, half b) { return (a>b) == (static_cast<float>(a)>static_cast<float>(b)); });
@@ -191,10 +191,10 @@ public:
 		UNARY_MATH_TEST(exp);
 		UNARY_MATH_TEST(log);
 		UNARY_MATH_TEST(log10);
-
+*/
 		//test power functions
 		UNARY_MATH_TEST(sqrt);
-		BINARY_MATH_TEST(pow);
+/*		BINARY_MATH_TEST(pow);
 
 		//test trig functions
 		UNARY_MATH_TEST(sin);
@@ -426,7 +426,7 @@ public:
 		simple_test("literals", []() -> bool { using namespace half_float::literal; return comp(0.0_h, half(0.0f)) && comp(-1.0_h, half(-1.0f)) && 
 			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3f)); });
 #endif
-
+*/
 		if(failed_.empty())
 			log_ << "ALL TESTS PASSED\n";
 		else
@@ -545,7 +545,7 @@ private:
 	std::vector<std::string> failed_;
 	std::ostream &log_;
 };
-/*
+
 #include <chrono>
 struct timer
 {
@@ -555,16 +555,16 @@ struct timer
 private:
 	std::chrono::time_point<std::chrono::high_resolution_clock> start_;
 };
-*/
+
 
 int main(int argc, char *argv[])
 {
 /*	unsigned int sum = 0;
 	{
 		timer time;
-		for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); a+=4)
-			for(unsigned int b=0; b<std::numeric_limits<std::uint16_t>::max(); b+=4)
-				sum += h2b(b2h(a)/b2h(b));
+		for(unsigned int i=0; i<5000; ++i)
+			for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); ++a)
+				sum += h2b(sqrt(b2h(a))));
 	}
 	std::cout << sum;
 	return 0;

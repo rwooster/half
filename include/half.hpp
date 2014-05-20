@@ -1072,15 +1072,6 @@ namespace half_float
 				int i = m >> 21, s = m & i, g;
 				m >>= i;
 				exp += (absx>>10) + (absy>>10) + i;
-				if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-				{
-					s |= (m|(m>>1)) & 0xFF;
-					s |= s >> 4;
-					s |= s >> 2;
-					s |= s >> 1;
-					s &= 1;
-					g = (m>>9) & 1;
-				}
 				if(exp > 30)
 				{
 					if(half::round_style == std::round_toward_infinity)
@@ -1092,6 +1083,15 @@ namespace half_float
 				}
 				else if(exp > -11)
 				{
+					if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						s |= (m|(m>>1)) & 0xFF;
+						s |= s >> 4;
+						s |= s >> 2;
+						s |= s >> 1;
+						s &= 1;
+						g = (m>>9) & 1;
+					}
 					if(exp > 0)
 						value |= (exp<<10) | ((m>>10)&0x3FF);
 					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
@@ -1142,9 +1142,6 @@ namespace half_float
 				int i = mx < my;
 				mx <<= i;
 				exp += (absx>>10) - (absy>>10) - i;
-				std::ldiv_t div = std::div(mx<<11, my);
-				int m = div.quot, g = m & 1, s = div.rem != 0;
-				m >>= 1;
 				if(exp > 30)
 				{
 					if(half::round_style == std::round_toward_infinity)
@@ -1156,6 +1153,9 @@ namespace half_float
 				}
 				else if(exp > -11)
 				{
+					std::ldiv_t div = std::div(mx<<11, my);
+					int m = div.quot, g = m & 1, s = div.rem != 0;
+					m >>= 1;
 					if(exp > 0)
 						value |= (exp<<10) | (m&0x3FF);
 					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
@@ -1321,13 +1321,14 @@ namespace half_float
 			/// \param x first operand
 			/// \param y second operand
 			/// \return Positive difference
-			static half fdim(float x, float y)
+			static half fdim(half x, half y)
 			{
-			#if HALF_ENABLE_CPP11_CMATH
-				return half(std::fdim(x, y));
-			#else
-				return half((x<=y) ? 0.0f : (x-y));
-			#endif
+				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
+				if(xabs > 0x7C00)
+					return x;
+				if(yabs > 0x7C00)
+					return y;
+				return (((xabs==x.data_) ? xabs : -xabs)<=((yabs==y.data_) ? yabs : -yabs)) ? half(binary, 0) : plus(x, half(binary, y.data_^0x8000));
 			}
 
 			/// Fused multiply-add implementation.
@@ -1424,40 +1425,32 @@ namespace half_float
 				int exp = 15;
 				for(; abs<0x400; abs<<=1,--exp) ;
 				exp += abs >> 10;
-				long m = ((abs&0x3FF)|0x400L) << ((exp&1)+1);
+				long m = ((abs&0x3FF)|0x400L) << ((exp&1)+1), r = m << 11, bit = 1L << 22;
 				exp /= 2;
-
-				int g = m & 1, s = 0;
-				m >>= 1;
-
-				if(exp > -11)
+				m = 0;
+				for(long bit=0x400000; bit; bit>>=2)
 				{
-					uint16 value;
-					if(exp > 0)
-						value = (exp<<10) | (m&0x3FF);
-					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-					{
-						s |= g;
-						for(; exp; ++exp,m>>=1)
-							s |= m & 1;
-						g = m & 1;
-						value |= m >> 1;
-					}
+					if(r < m+bit)
+						m >>= 1;
 					else
-						value = m >> (1-exp);
-					if(half::round_style == std::round_to_nearest)
-						#if HALF_ROUND_TIES_TO_EVEN
-							value += g & (s|value);
-						#else
-							value += g;
-						#endif
-					else if(half::round_style == std::round_toward_infinity)
-						value += ~(value>>15) & (g|s);
-					else if(half::round_style == std::round_toward_neg_infinity)
-						value += (value>>15) & (g|s);
-					return half(binary, value);
+					{
+						r -= m + bit;
+						m = (m>>1) + bit;
+					}
 				}
-				return half(binary, half::round_style==std::round_toward_infinity);
+				int g = m & 1, s = r != 0;
+				uint16 value = (exp<<10) | ((m>>1)&0x3FF);
+				if(half::round_style == std::round_to_nearest)
+					#if HALF_ROUND_TIES_TO_EVEN
+						value += g & (s|value);
+					#else
+						value += g;
+					#endif
+				else if(half::round_style == std::round_toward_infinity)
+					value += ~(value>>15) & (g|s);
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += (value>>15) & (g|s);
+				return half(binary, value);
 			}
 
 			/// Cubic root implementation.
