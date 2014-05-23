@@ -1088,8 +1088,7 @@ namespace half_float
 						s |= (m|(m>>1)) & 0xFF;
 						s |= s >> 4;
 						s |= s >> 2;
-						s |= s >> 1;
-						s &= 1;
+						s = (s|(s>>1)) & 1;
 						g = (m>>9) & 1;
 					}
 					if(exp > 0)
@@ -1336,13 +1335,121 @@ namespace half_float
 			/// \param y second operand
 			/// \param z third operand
 			/// \return \a x * \a y + \a z
-			static half fma(float x, float y, float z)
+			static half fma(half x, half y, half z)
 			{
-			#if HALF_ENABLE_CPP11_CMATH && defined(FP_FAST_FMAF)
-				return half(std::fma(x, y, z));
-			#else
-				return half(x*y+z);
-			#endif
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, absz = z.data_ & 0x7FFF;
+				if(absx > 0x7C00)
+					return x;
+				if(absy > 0x7C00)
+					return y;
+				if(absz > 0x7C00)
+					return z;
+				uint16 value = (x.data_^y.data_) & 0x8000;
+				bool sub = (value^y.data_) >> 15;
+				if(absx == 0x7C00)
+					return half(binary, (!absy || (sub && absz==0x7C00)) ? 0x7FFF : (value|0x7C00));
+				if(absy == 0x7C00)
+					return half(binary, (!absx || (sub && absz==0x7C00)) ? 0x7FFF : (value|0x7C00));
+				if(absz == 0x7C00 || !absx || !absy)
+					return z;
+				int exp = -15;
+				for(; absx<0x400; absx<<=1,--exp) ;
+				for(; absy<0x400; absy<<=1,--exp) ;
+				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
+				int i = m >> 21, s = 0, g;
+				exp += (absx>>10) + (absy>>10) + i;
+				m <<= 2 - i;
+				if(absz)
+				{
+					int	expz = (absz>>10) + (absz<=0x3FF);
+					long mz = ((absz&0x3FFL)|((absz>0x3FF)<<10)) << 12;
+					if(sub && mz > m)
+						value = z.data_ & 0x8000;
+					if(expz > exp || (expz == exp && mz > m))
+					{
+						std::swap(m, mz);
+						std::swap(exp, expz);
+					}
+					m <<= 1;
+					int d = exp - expz;
+					if(d < 23)
+					{
+						int s = 0;
+						for(; d; --d,mz>>=1)
+							s |= mz & 1;
+						mz = (mz<<1) | s;
+					}
+					else
+						mz = 1;
+					if(sub)
+					{
+						m -= mz;
+						if(!m)
+							return half(binary, value);
+						for(; m<0x800000; m<<=1,--exp) ;
+					}
+					else
+					{
+						m += mz;
+						if(m > 0xFFFFFF)
+						{
+							s = m & 1;
+							m >>= 1;
+							++exp;
+						}
+					}
+				}
+				else
+					m <<= 1;
+				if(exp > 30)
+				{
+					if(half::round_style == std::round_toward_infinity)
+						value |= 0x7C00 - (value>>15);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value |= 0x7BFF + (value>>15);
+					else
+						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
+				}
+				else if(exp > -11)
+				{
+					if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						s |= (m|(m>>4)) & 0xFF;
+						s |= s >> 4;
+						s |= s >> 2;
+						s = (s|(s>>1)) & 1;
+						s &= 1;
+						g = (m>>12) & 1;
+					}
+					if(exp > 0)
+						value |= (exp<<10) | ((m>>13)&0x3FF);
+					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						m >>= 13;
+						s |= g;
+						for(; exp; ++exp,m>>=1)
+							s |= m & 1;
+						g = m & 1;
+						value |= m >> 1;
+					}
+					else
+						value |= m >> (14-exp);
+					if(half::round_style == std::round_to_nearest)
+						#if HALF_ROUND_TIES_TO_EVEN
+							value += g & (s|value);
+						#else
+							value += g;
+						#endif
+					else if(half::round_style == std::round_toward_infinity)
+						value += ~(value>>15) & (g|s);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value += (value>>15) & (g|s);
+				}
+				else if(half::round_style == std::round_toward_infinity)
+					value -= (value>>15) - 1;
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += value >> 15;
+				return half(binary, value);
 			}
 
 			/// Get NaN.
