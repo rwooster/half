@@ -58,8 +58,17 @@
 	bool success = binary_test(#func, [&](half x, half y) -> bool { \
 		half a = func(x, y), b(std::func(static_cast<float>(x), static_cast<float>(y))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		/*std::cout << x << " - " << y << " = " << a << '(' << std::hex << h2b(a) << ") - " << b << '(' << h2b(b) << ") - " << error << '\n' << std::dec;*/ \
+		/*std::cout << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); } return equal; }); \
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
+
+#define TERNARY_MATH_TEST(func) { \
+	double err = 0.0, rel = 0.0; \
+	bool success = ternary_test(#func, [&](half x, half y, half z) -> bool { \
+		half a = func(x, y, z), b(std::func(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z))); bool equal = comp(a, b); \
+		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
+		std::cout << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
+		err = std::max(err, error); rel = std::max(rel, error/std::min(std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))), std::abs(static_cast<double>(z)))); } return equal; }); \
 	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
 
 
@@ -144,6 +153,8 @@ public:
 
 	unsigned int test()
 	{
+//		std::fesetround(FE_TOWARDZERO);
+
 		//test size
 /*		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
 
@@ -252,7 +263,8 @@ public:
 		BINARY_MATH_TEST(fmin);
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
-
+*/		TERNARY_MATH_TEST(fma);
+/*
 		//test exponential functions
 		UNARY_MATH_TEST(exp2);
 		UNARY_MATH_TEST(expm1);
@@ -524,6 +536,44 @@ private:
 					{
 						++tests;
 						count += test(iterB1->second[i], iterB2->second[j]);
+					}
+				}
+			}
+		}
+		bool passed = count == tests;
+		if(passed)
+			log_ << "all passed\n\n";
+		else
+		{
+			log_ << (tests-count) << " of " << tests << " failed\n\n";
+			failed_.push_back(name);
+		}
+		++tests_;
+		return passed;
+	}
+
+	template<typename F> bool ternary_test(const std::string &name, F test)
+	{
+		static const unsigned int step = 512;
+		auto rand = std::bind(std::uniform_int_distribution<std::size_t>(0, step-1), std::default_random_engine());
+		unsigned int tests = 0, count = 0;
+		log_ << "testing " << name << ": ";
+		for(auto iterB1=halfs_.begin(); iterB1!=halfs_.end(); ++iterB1)
+		{
+			for(auto iterB2=halfs_.begin(); iterB2!=halfs_.end(); ++iterB2)
+			{
+				for(auto iterB3=halfs_.begin(); iterB3!=halfs_.end(); ++iterB3)
+				{
+					for(unsigned int i=std::min(rand(), iterB1->second.size()-1); i<iterB1->second.size(); i+=step)
+					{
+						for(unsigned int j=std::min(rand(), iterB2->second.size()-1); j<iterB2->second.size(); j+=step)
+						{
+							for(unsigned int k=std::min(rand(), iterB3->second.size()-1); k<iterB3->second.size(); k+=step)
+							{
+								++tests;
+								count += test(iterB1->second[i], iterB2->second[j], iterB3->second[k]);
+							}
+						}
 					}
 				}
 			}

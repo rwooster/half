@@ -1345,7 +1345,7 @@ namespace half_float
 				if(absz > 0x7C00)
 					return z;
 				uint16 value = (x.data_^y.data_) & 0x8000;
-				bool sub = (value^y.data_) >> 15;
+				bool sub = (value^z.data_) >> 15;
 				if(absx == 0x7C00)
 					return half(binary, (!absy || (sub && absz==0x7C00)) ? 0x7FFF : (value|0x7C00));
 				if(absy == 0x7C00)
@@ -1363,12 +1363,12 @@ namespace half_float
 				{
 					int	expz = (absz>>10) + (absz<=0x3FF);
 					long mz = ((absz&0x3FFL)|((absz>0x3FF)<<10)) << 12;
-					if(sub && mz > m)
-						value = z.data_ & 0x8000;
 					if(expz > exp || (expz == exp && mz > m))
 					{
 						std::swap(m, mz);
 						std::swap(exp, expz);
+						if(sub)
+							value = z.data_ & 0x8000;
 					}
 					m <<= 1;
 					int d = exp - expz;
