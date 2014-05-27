@@ -1529,7 +1529,7 @@ namespace half_float
 				int abs = arg.data_ & 0x7FFF;
 				if(!abs || abs >= 0x7C00)
 					return arg;
-				int exp = 15, g, s;
+				int exp = 15;
 				for(; abs<0x400; abs<<=1,--exp) ;
 				exp += abs >> 10;
 				long m = 0, r = ((abs&0x3FF)|0x400L) << ((exp&1)+12);
@@ -1544,11 +1544,7 @@ namespace half_float
 						m = (m>>1) + bit;
 					}
 				}
-				if(half::round_style == std::round_to_nearest || half::round_style == std::round_toward_infinity)
-				{
-					g = m & 1;
-					s = r != 0;
-				}
+				int g = m & 1, s = r != 0;
 				uint16 value = (exp<<10) | ((m>>1)&0x3FF);
 				if(half::round_style == std::round_to_nearest)
 					#if HALF_ROUND_TIES_TO_EVEN
