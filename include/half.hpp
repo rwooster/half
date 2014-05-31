@@ -1361,8 +1361,10 @@ namespace half_float
 				m <<= 2 - i;
 				if(absz)
 				{
-					int	expz = (absz>>10) + (absz<=0x3FF);
-					long mz = ((absz&0x3FFL)|((absz>0x3FF)<<10)) << 12;
+					int expz = 0;
+					for(; absz<0x400; absz<<=1,--expz) ;
+					expz += absz >> 10;
+					long mz = ((absz&0x3FF)|0x400L) << 12;
 					if(expz > exp || (expz == exp && mz > m))
 					{
 						std::swap(m, mz);
@@ -1383,6 +1385,8 @@ namespace half_float
 						mz = 1;
 					if(sub)
 					{
+						if(mz > m)
+							std::swap(m, mz);
 						m -= mz;
 						if(!m)
 							return half(binary, value);
