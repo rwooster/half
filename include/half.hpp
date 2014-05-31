@@ -1385,9 +1385,7 @@ namespace half_float
 						mz = 1;
 					if(sub)
 					{
-						if(mz > m)
-							std::swap(m, mz);
-						m -= mz;
+						m = std::abs(m-mz);
 						if(!m)
 							return half(binary, value);
 						for(; m<0x800000; m<<=1,--exp) ;
