@@ -155,7 +155,7 @@ public:
 
 	unsigned int test()
 	{
-//		std::fesetround(FE_DOWNWARD);
+//		std::fesetround(FE_UPWARD);
 
 		//test size
 /*		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
@@ -197,8 +197,8 @@ public:
 		//test basic functions
 		UNARY_MATH_TEST(abs);
 		UNARY_MATH_TEST(fabs);
-		BINARY_MATH_TEST(fmod);
-		binary_test("fdim", [](half a, half b) -> bool { half c = fdim(a, b); return isnan(a) || isnan(b) || 
+*/		BINARY_MATH_TEST(fmod);
+/*		binary_test("fdim", [](half a, half b) -> bool { half c = fdim(a, b); return isnan(a) || isnan(b) || 
 			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, static_cast<half>(0.0f))); });
 
 		//test exponential functions
@@ -265,8 +265,8 @@ public:
 		BINARY_MATH_TEST(fmin);
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
-*/		TERNARY_MATH_TEST(fma);
-/*
+		TERNARY_MATH_TEST(fma);
+
 		//test exponential functions
 		UNARY_MATH_TEST(exp2);
 		UNARY_MATH_TEST(expm1);
@@ -275,8 +275,8 @@ public:
 
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
-*/		BINARY_MATH_TEST(hypot);
-/*
+		BINARY_MATH_TEST(hypot);
+
 		//test hyp functions
 		UNARY_MATH_TEST(asinh);
 		UNARY_MATH_TEST(acosh);

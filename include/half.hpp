@@ -1069,8 +1069,7 @@ namespace half_float
 				for(; absx<0x400; absx<<=1,--exp) ;
 				for(; absy<0x400; absy<<=1,--exp) ;
 				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
-				int i = m >> 21, s = m & i, g;
-				m >>= i;
+				int i = m >> 21;
 				exp += (absx>>10) + (absy>>10) + i;
 				if(exp > 30)
 				{
@@ -1083,14 +1082,10 @@ namespace half_float
 				}
 				else if(exp > -11)
 				{
-					if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-					{
-						s |= (m|(m>>1)) & 0xFF;
-						s |= s >> 4;
-						s |= s >> 2;
-						s = (s|(s>>1)) & 1;
-						g = (m>>9) & 1;
-					}
+					int s = m & i;
+					m >>= i;
+					s |= (m&0x1FF) != 0;
+					int g = (m>>9) & 1;
 					if(exp > 0)
 						value |= (exp<<10) | ((m>>10)&0x3FF);
 					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
@@ -1217,7 +1212,41 @@ namespace half_float
 			/// \param x first operand
 			/// \param y second operand
 			/// \return Half-precision division remainder
-			static half fmod(float x, float y) { return half(std::fmod(x, y)); }
+			static half fmod(half x, half y)
+			{
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx >= 0x7C00 || absy >= 0x7C00 || !absy)
+					return half(binary, 0x7FFF);
+				if(absx < absy)
+					return x;
+				uint16 value = x.data_ & 0x8000;
+				if(absx == absy)
+					return half(binary, value);
+				int expx = 0, expy = 0;
+				for(; absx<0x400; absx<<=1,--expx) ;
+				for(; absy<0x400; absy<<=1,--expy) ;
+				expx += absx >> 10;
+				expy += absy >> 10;
+				int mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
+				for(int d=expx-expy; d; --d)
+				{
+					if(mx == my)
+						return half(binary, value);
+					if(mx > my)
+						mx -= my;
+					mx <<= 1;
+				}
+				if(mx == my)
+					return half(binary, value);
+				if(mx > my)
+					mx -= my;
+				for(; mx<0x400; mx<<=1,--expy) ;
+				if(expy > 0)
+					value |= (expy<<10) | (mx&0x3FF);
+				else
+					value |= mx >> (1-expy);
+				return half(binary, value);
+			}
 
 			/// Remainder implementation.
 			/// \param x first operand
@@ -1356,7 +1385,7 @@ namespace half_float
 				for(; absx<0x400; absx<<=1,--exp) ;
 				for(; absy<0x400; absy<<=1,--exp) ;
 				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
-				int i = m >> 21, s = 0, g;
+				int i = m >> 21, s = 0;
 				exp += (absx>>10) + (absy>>10) + i;
 				m <<= 2 - i;
 				if(absz)
@@ -1414,15 +1443,8 @@ namespace half_float
 				}
 				else if(exp > -11)
 				{
-					if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-					{
-						s |= (m|(m>>4)) & 0xFF;
-						s |= s >> 4;
-						s |= s >> 2;
-						s = (s|(s>>1)) & 1;
-						s &= 1;
-						g = (m>>12) & 1;
-					}
+					int g = (m>>12) & 1;
+					s |= (m&0xFFF) != 0;
 					if(exp > 0)
 						value |= (exp<<10) | ((m>>13)&0x3FF);
 					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
@@ -1534,6 +1556,45 @@ namespace half_float
 				int exp = 15;
 				for(; abs<0x400; abs<<=1,--exp) ;
 				exp += abs >> 10;
+				long m = 0, r = ((abs&0x3FF)|0x400L) << ((exp&1)+10);
+				exp /= 2;
+				for(long bit=0x100000L; bit; bit>>=2)
+				{
+					if(r < m+bit)
+						m >>= 1;
+					else
+					{
+						r -= m + bit;
+						m = (m>>1) + bit;
+					}
+				}
+				uint16 value = (exp<<10) | (m&0x3FF);
+				if(half::round_style == std::round_to_nearest)
+					value += r > m;
+				else if(half::round_style == std::round_toward_infinity)
+					value += r != 0;
+				return half(binary, value);
+			}
+
+			/// Cubic root implementation.
+			/// \param arg function argument
+			/// \return function value
+			static half cbrt(half arg)
+			{
+			#if HALF_ENABLE_CPP11_CMATH
+				return half(std::cbrt(arg));
+			#else
+				if(builtin_isnan(arg) || builtin_isinf(arg))
+					return half(arg);
+				return half(builtin_signbit(arg) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
+					static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
+			#endif
+				int abs = arg.data_ & 0x7FFF;
+				if(!abs || abs >= 0x7C00)
+					return arg;
+				int exp = 15;
+				for(; abs<0x400; abs<<=1, --exp);
+				exp += abs >> 10;
 				long m = 0, r = ((abs&0x3FF)|0x400L) << ((exp&1)+12);
 				exp /= 2;
 				for(long bit=0x400000L; bit; bit>>=2)
@@ -1547,7 +1608,7 @@ namespace half_float
 					}
 				}
 				int g = m & 1, s = r != 0;
-				uint16 value = (exp<<10) | ((m>>1)&0x3FF);
+				uint16 value = (arg.data_&0x8000) | (exp<<10) | ((m>>1)&0x3FF);
 				if(half::round_style == std::round_to_nearest)
 					#if HALF_ROUND_TIES_TO_EVEN
 						value += g & (s|value);
@@ -1555,23 +1616,10 @@ namespace half_float
 						value += g;
 					#endif
 				else if(half::round_style == std::round_toward_infinity)
-					value += g | s;
+					value += ~(value>>15) & (g|s);
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += (value>>15) & (g|s);
 				return half(binary, value);
-			}
-
-			/// Cubic root implementation.
-			/// \param arg function argument
-			/// \return function value
-			static half cbrt(float arg)
-			{
-			#if HALF_ENABLE_CPP11_CMATH
-				return half(std::cbrt(arg));
-			#else
-				if(builtin_isnan(arg) || builtin_isinf(arg))
-					return half(arg);
-				return half(builtin_signbit(arg) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
-					static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
-			#endif
 			}
 
 			/// Hypotenuse implementation.
@@ -1594,14 +1642,14 @@ namespace half_float
 				int expx = 0, expy = 0;
 				for(; absx<0x400; absx<<=1,--expx) ;
 				for(; absy<0x400; absy<<=1,--expy) ;
-				long mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
+				unsigned long mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
 				mx *= mx;
 				my *= my;
 				int ix = mx >> 21, iy = my >> 21;
 				expx = 2*(expx+(absx>>10)) - 15 + ix;
 				expy = 2*(expy+(absy>>10)) - 15 + iy;
-				mx <<= 1 - ix;
-				my <<= 1 - iy;
+				mx <<= 1 - ix;									//!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				my <<= 1 - iy;									//!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				if(expy > expx)
 				{
 					std::swap(mx, my);
@@ -1609,7 +1657,7 @@ namespace half_float
 				}
 				int exp = expx, d = expx - expy;
 				mx <<= 1;
-				if(d < 22)
+				if(d < 22)										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				{
 					int s = 0;
 					for(; d; --d,my>>=1)
@@ -1618,16 +1666,16 @@ namespace half_float
 				}
 				else
 					my = 1;
-				int r = mx + my, m = 0, g, s;
-//				r <<= 2;
-				if(r > 0x1FFFFFF)
+				unsigned long r = mx + my, m = 0;
+				if(r > 0x7FFFFF)								//!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				{
 					r = (r|((r&1)<<1)) >> 1;
 					++exp;
 				}
-				r <<= (exp+=15) & 1;
-				exp /= 2;
-				for(long bit=0x400000L/*<<2*/; bit; bit>>=2)
+				int i = (exp+=15) & 1U;
+				r <<= i;
+				exp = (exp-i) / 2;
+				for(long bit=0x400000L; bit; bit>>=2)			//!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 				{
 					if(r < m+bit)
 						m >>= 1;
@@ -1641,13 +1689,10 @@ namespace half_float
 					return half(binary, 0x7BFF+(half::round_style!=std::round_toward_zero && half::round_style!=std::round_toward_neg_infinity));
 				if(exp < -10)
 					return half(binary, half::round_style==std::round_toward_infinity);
-				if(half::round_style == std::round_to_nearest || half::round_style == std::round_toward_infinity)
-				{
-					s = r != 0;
-//					s |= m & 1;
-//					m >>= 1;
-					g = m & 1;
-				}
+				int s = r != 0;
+				s |= (m&0x0) != 0;								//!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				m >>= 0;										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+				int g = m & 1;
 				uint16 value;
 				if(exp > 0)
 					value = (exp<<10) | ((m>>1)&0x3FF);
@@ -1997,7 +2042,6 @@ namespace half_float
 				{
 					if(abs < 0x400)
 						for(unsigned int m=abs; m<0x200; m<<=1,abs-=0x400) ;
-//					return half(static_cast<float>((abs>>10)-15));
 					abs = (abs>>10) - 15;
 					uint16 bits = (abs<0) << 15;
 					if(abs)
