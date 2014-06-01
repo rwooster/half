@@ -2021,9 +2021,10 @@ namespace half_float
 					return FP_ILOGB0;
 				if(abs < 0x7C00)
 				{
+					int exp = (abs>>10) - 15;
 					if(abs < 0x400)
-						for(unsigned int m=abs; m<0x200; m<<=1,abs-=0x400) ;
-					return (abs>>10) - 15;
+						for(; abs<0x200; abs<<=1,--exp) ;
+					return exp;
 				}
 				if(abs > 0x7C00)
 					return FP_ILOGBNAN;
@@ -2040,15 +2041,15 @@ namespace half_float
 					return half(binary, 0xFC00);
 				if(abs < 0x7C00)
 				{
+					int exp = (abs>>10) - 15;
 					if(abs < 0x400)
-						for(unsigned int m=abs; m<0x200; m<<=1,abs-=0x400) ;
-					abs = (abs>>10) - 15;
-					uint16 bits = (abs<0) << 15;
-					if(abs)
+						for(; abs<0x200; abs<<=1,--exp) ;
+					uint16 bits = (exp<0) << 15;
+					if(exp)
 					{
-						unsigned int m = std::abs(abs) << 6, exp = 18;
-						for(; m<0x400; m<<=1,--exp) ;
-						bits |= (exp<<10) + m;
+						unsigned int m = std::abs(exp) << 6, e = 18;
+						for(; m<0x400; m<<=1,--e) ;
+						bits |= (e<<10) + m;
 					}
 					return half(binary, bits);
 				}
