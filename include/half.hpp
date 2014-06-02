@@ -1222,6 +1222,101 @@ namespace half_float
 				uint16 value = x.data_ & 0x8000;
 				if(absx == absy)
 					return half(binary, value);
+/*				int expx = 0, expy = 0;
+				for(; absx<0x400; absx<<=1,--expx) ;
+				for(; absy<0x400; absy<<=1,--expy) ;
+				expx += absx >> 10;
+				expy += absy >> 10;
+				int mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
+				for(int d=expx-expy; d; --d)
+				{
+					if(mx == my)
+						return half(binary, value);
+					if(mx > my)
+						mx -= my;
+					mx <<= 1;
+				}
+				if(mx == my)
+					return half(binary, value);
+				if(mx > my)
+					mx -= my;
+				for(; mx<0x400; mx<<=1,--expy) ;
+				if(expy > 0)
+					value |= (expy<<10) | (mx&0x3FF);
+				else
+					value |= mx >> (1-expy);
+				return half(binary, value);
+*/				return half(binary, value | fmod(absx, absy));
+			}
+
+			/// Remainder implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision division remainder
+			static half remainder(half x, half y)
+			{
+			#if HALF_ENABLE_CPP11_CMATH
+				return half(std::remainder(x, y));
+			#else
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
+					return half(binary, 0x7FFF);
+				if(absy == 0x7C00)
+					return x;
+				if(absx == absy)
+					return half(binary, x.data_&0x8000);
+				float ax = std::fabs(x), ay = std::fabs(y);
+				ax = std::fmod(ax, ay+ay);
+				float y2 = 0.5f * ay;
+				if(ax > y2)
+				{
+					ax -= ay;
+					if(ax >= y2)
+						ax -= ay;
+				}
+				return copysign(half(ax), x);
+			#endif
+				uint16 sign = x.data_ & 0x8000;
+				x.data_ &= 0x7FFF;
+				y.data_ &= 0x7FFF;
+				if(x.data_ >= 0x7C00 || y.data_ > 0x7C00 || !y.data_)
+					return half(binary, 0x7FFF);
+				if(y.data_ == 0x7C00)
+					return half(binary, sign|x.data_);
+				if(!x.data_ || x.data_ == y.data_)
+					return half(binary, sign);
+				if(y.data_ < 0x7800)
+					x.data_ = fmod(x.data_, y.data_+0x400);
+				if(y < 0x800)
+				{
+					if(((x.data_<0x400) ? (x.data_<<1) : (x.data_+0x400)) > y.data_)
+					{
+						x = minus(x, y);
+						uint16 c = (x.data_<0x400) ? (x.data_<<1) : (x.data_+0x400);
+						if(c < 0x8000 && c > y.data_)
+							x = minus(x, y);
+					}
+				}
+				else
+				{
+					half y2(binary, y.data_-0x400);
+					if(x.data_ > y2.data_)
+					{
+						x = minus(x, y);
+						if(x.data_ < 0x8000 && x.data_ > y2.data_)
+							x = minus(x, y);
+					}
+				}
+				return half(binary, x.data_^sign);
+
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
+					return half(binary, 0x7FFF);
+				if(absy == 0x7C00)
+					return x;
+				uint16 value = x.data_ & 0x8000;
+				if(absx == absy)
+					return half(binary, value);
 				int expx = 0, expy = 0;
 				for(; absx<0x400; absx<<=1,--expx) ;
 				for(; absy<0x400; absy<<=1,--expy) ;
@@ -1246,36 +1341,6 @@ namespace half_float
 				else
 					value |= mx >> (1-expy);
 				return half(binary, value);
-			}
-
-			/// Remainder implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision division remainder
-			static half remainder(float x, float y)
-			{
-			#if HALF_ENABLE_CPP11_CMATH
-				return half(std::remainder(x, y));
-			#else
-				if(builtin_isnan(x) || builtin_isnan(y))
-					return half(binary, 0x7FFF);
-				float ax = std::fabs(x), ay = std::fabs(y);
-				if(ax >= 65536.0f || ay < std::ldexp(1.0f, -24))
-					return half(binary, 0x7FFF);
-				if(ay >= 65536.0f)
-					return half(x);
-				if(ax == ay)
-					return half(builtin_signbit(x) ? -0.0f : 0.0f);
-				ax = std::fmod(ax, ay+ay);
-				float y2 = 0.5f * ay;
-				if(ax > y2)
-				{
-					ax -= ay;
-					if(ax >= y2)
-						ax -= ay;
-				}
-				return half(builtin_signbit(x) ? -ax : ax);
-			#endif
 			}
 
 			/// Remainder implementation.
@@ -1356,7 +1421,7 @@ namespace half_float
 					return x;
 				if(yabs > 0x7C00)
 					return y;
-				return (((xabs==x.data_) ? xabs : -xabs)<=((yabs==y.data_) ? yabs : -yabs)) ? half(binary, 0) : plus(x, half(binary, y.data_^0x8000));
+				return (((xabs==x.data_) ? xabs : -xabs)<=((yabs==y.data_) ? yabs : -yabs)) ? half(binary, 0) : minus(x, y));
 			}
 
 			/// Fused multiply-add implementation.
@@ -2218,6 +2283,32 @@ namespace half_float
 			static bool isunordered(half x, half y) { return isnan(x) || isnan(y); }
 
 		private:
+			static uint16 fmod(uint16 absx, uint16 absy)
+			{
+				int expx = 0, expy = 0;
+				for(; absx<0x400; absx<<=1,--expx) ;
+				for(; absy<0x400; absy<<=1,--expy) ;
+				expx += absx >> 10;
+				expy += absy >> 10;
+				int mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
+				for(int d=expx-expy; d; --d)
+				{
+					if(mx == my)
+						return 0;
+					if(mx > my)
+						mx -= my;
+					mx <<= 1;
+				}
+				if(mx == my)
+					return 0;
+				if(mx > my)
+					mx -= my;
+				for(; mx<0x400; mx<<=1,--expy) ;
+				if(expy > 0)
+					return (expy<<10) | (mx&0x3FF);
+				return mx >> (1-expy);
+			}
+
 			static double erf(double arg)
 			{
 				if(builtin_isinf(arg))
