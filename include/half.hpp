@@ -1214,34 +1214,13 @@ namespace half_float
 			/// \return Half-precision division remainder
 			static half fmod(half x, half y)
 			{
-				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, q;
 				if(absx >= 0x7C00 || absy >= 0x7C00 || !absy)
 					return half(binary, 0x7FFF);
-				if(absx < absy)
-					return x;
 				uint16 sign = x.data_ & 0x8000;
 				if(absx == absy)
 					return half(binary, sign);
-				int expx = 0, expy = 0;
-				for(; absx<0x400; absx<<=1,--expx) ;
-				for(; absy<0x400; absy<<=1,--expy) ;
-				expx += absx >> 10;
-				expy += absy >> 10;
-				int mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
-				for(int d=expx-expy; d; --d)
-				{
-					if(mx == my)
-						return half(binary, sign);
-					if(mx > my)
-						mx -= my;
-					mx <<= 1;
-				}
-				if(mx == my)
-					return half(binary, sign);
-				if(mx > my)
-					mx -= my;
-				for(; mx<0x400; mx<<=1,--expy) ;
-				return half(binary, sign | ((expy>0) ? ((expy<<10)|(mx&0x3FF)) : (mx>>(1-expy))));
+				return half(binary, sign | mod<false,false>(absx, absy, q));
 			}
 
 			/// Remainder implementation.
@@ -1250,30 +1229,7 @@ namespace half_float
 			/// \return Half-precision division remainder
 			static half remainder(half x, half y)
 			{
-/*			#if HALF_ENABLE_CPP11_CMATH
-				return half(std::remainder(x, y));
-			#else
-				uint16 sign = x.data_ & 0x8000;
-				x.data_ &= 0x7FFF;
-				y.data_ &= 0x7FFF;
-				if(x.data_ >= 0x7C00 || y.data_ > 0x7C00 || !y.data_)
-					return half(binary, 0x7FFF);
-				if(y.data_ == 0x7C00)
-					return half(binary, sign|x.data_);
-				if(!x.data_ || x.data_ == y.data_)
-					return half(binary, sign);
-				float ax = static_cast<float>(x), ay = static_cast<float>(y);
-				ax = std::fmod(ax, ay+ay);
-				float y2 = 0.5f * ay;
-				if(ax > y2)
-				{
-					ax -= ay;
-					if(ax >= y2)
-						ax -= ay;
-				}
-				return half(binary, half(ax).data_^sign);
-			#endif
-*/				int absx = x.data_ & 0x7FFF, absy = y.data_ &= 0x7FFF, q = 0;
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, q = 0;
 				if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
 					return half(binary, 0x7FFF);
 				if(absy == 0x7C00)
@@ -1281,51 +1237,7 @@ namespace half_float
 				uint16 sign = x.data_ & 0x8000;
 				if(absx == absy)
 					return half(binary, sign);
-				if(absx > absy)
-				{
-					int expx = 0, expy = 0;
-					for(; absx<0x400; absx<<=1, --expx);
-					for(; absy<0x400; absy<<=1, --expy);
-					expx += absx >> 10;
-					expy += absy >> 10;
-					int mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
-					for(int d=expx-expy; d; --d)
-					{
-						if(mx == my)
-							return half(binary, sign);
-						if(mx > my)
-						{
-							mx -= my;
-							++q;
-						}
-						mx <<= 1;
-						q <<= 1;
-					}
-					if(mx == my)
-						return half(binary, sign);
-					if(mx > my)
-					{
-						mx -= my;
-						++q;
-					}
-					for(; mx<0x400; mx<<=1, --expy);
-					x.data_ = (expy>0) ? ((expy<<10)|(mx&0x3FF)) : (mx>>(1-expy));
-				}
-				else
-					x.data_ = absx;
-				if(y.data_ < 0x800)
-				{
-					uint16 x2 = (x.data_<0x400) ? (x.data_<<1) : (x.data_+0x400);
-					if(x2 > y.data_ || (x2 == y.data_ && (q&1)))
-						x = mod_sub(x, y);
-				}
-				else
-				{
-					uint16 y_half = y.data_ - 0x400;
-					if(x.data_ > y_half || (x.data_ == y_half && (q&1)))
-						x = mod_sub(x, y);
-				}
-				return half(binary, x.data_^sign);
+				return half(binary, sign^mod<false,true>(absx, absy, q));
 			}
 
 			/// Remainder implementation.
@@ -1335,103 +1247,17 @@ namespace half_float
 			/// \return Half-precision division remainder
 			static half remquo(half x, half y, int *quo)
 			{
-/*			#if HALF_ENABLE_CPP11_CMATH
-				return half(std::remquo(x, y, quo));
-			#else
 				uint16 sign = x.data_ & 0x8000;
 				bool qsign = (sign^y.data_) >> 15;
-				x.data_ &= 0x7FFF;
-				y.data_ &= 0x7FFF;
-				if(x.data_ >= 0x7C00 || y.data_ > 0x7C00 || !y.data_)
-					return half(binary, 0x7FFF);
-				if(y.data_ == 0x7C00)
-					return *quo = 0, half(binary, sign|x.data_);
-				if(x.data_ == y.data_)
-					return *quo = qsign ? -1 : 1, half(binary, sign);
-				float ax = static_cast<float>(x), ay = static_cast<float>(y);
-				ax = std::fmod(ax, 8.0f*ay);
-				int cquo = 0;
-				if(ax >= 4.0f * ay)
-				{
-					ax -= 4.0f * ay;
-					cquo += 4;
-				}
-				if(ax >= 2.0f * ay)
-				{
-					ax -= 2.0f * ay;
-					cquo += 2;
-				}
-				float y2 = 0.5f * ay;
-				if(ax > y2)
-				{
-					ax -= ay;
-					++cquo;
-					if(ax >= y2)
-					{
-						ax -= ay;
-						++cquo;
-					}
-				}
-				return *quo = qsign ? -cquo : cquo, half(sign ? -ax : ax);
-			#endif
-*/				uint16 sign = x.data_ & 0x8000;
-				bool qsign = (sign^y.data_) >> 15;
-				int absx = x.data_ & 0x7FFF, absy = y.data_ &= 0x7FFF, q = 0;
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, q = 0;
 				if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
 					return half(binary, 0x7FFF);
 				if(absy == 0x7C00)
 					return *quo = 0, x;
 				if(absx == absy)
 					return *quo = qsign ? -1 : 1, half(binary, sign);
-				if(absx > absy)
-				{
-					int expx = 0, expy = 0;
-					for(; absx<0x400; absx<<=1, --expx);
-					for(; absy<0x400; absy<<=1, --expy);
-					expx += absx >> 10;
-					expy += absy >> 10;
-					int mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
-					for(int d=expx-expy; d; --d)
-					{
-						if(mx >= my)
-						{
-							mx -= my;
-							++q;
-						}
-						mx <<= 1;
-						q <<= 1;
-					}
-					if(mx >= my)
-					{
-						mx -= my;
-						++q;
-					}
-					if(!mx)
-						return *quo = qsign ? -q : q, half(binary, sign);
-					for(; mx<0x400; mx<<=1, --expy);
-					x.data_ = (expy>0) ? ((expy<<10)|(mx&0x3FF)) : (mx>>(1-expy));
-				}
-				else
-					x.data_ = absx;
-				if(y.data_ < 0x800)
-				{
-					uint16 x2 = (x.data_<0x400) ? (x.data_<<1) : (x.data_+0x400);
-					if(x2 > y.data_ || (x2 == y.data_ && (q&1)))
-					{
-						x = mod_sub(x, y);
-						++q;
-					}
-				}
-				else
-				{
-					uint16 y_half = y.data_ - 0x400;
-					if(x.data_ > y_half || (x.data_ == y_half && (q&1)))
-					{
-						x = mod_sub(x, y);
-						++q;
-					}
-				}
-				return *quo = qsign ? -q : q, half(binary, x.data_^sign);
+				absx = mod<true,true>(absx, absy, q);
+				return *quo = qsign ? -q : q, half(binary, absx^sign);
 			}
 
 			static half fmin(half x, half y)
@@ -2327,12 +2153,63 @@ namespace half_float
 			static bool isunordered(half x, half y) { return isnan(x) || isnan(y); }
 
 		private:
-			static half mod_sub(half x, half y)
+			template<bool Q,bool R> static uint16 mod(uint16 x, uint16 y, int &q)
 			{
-				int absx = y.data_, absy = x.data_, exp = (absx>>10) + (absx<=0x3FF), d = exp - (absy>>10) - (absy<=0x3FF);
-				int m = (((absx&0x3FF)|((absx>0x3FF)<<10))<<1) - (((absy&0x3FF)|((absy>0x3FF)<<10))<<(1-d));
-				for(; m<0x800 && exp>1; m<<=1,--exp) ;
-				return half(binary, 0x8000|((exp-1)<<10)+(m>>1));
+				if(x > y)
+				{
+					int absx = x, absy = y, expx = 0, expy = 0;
+					for(; absx<0x400; absx<<=1, --expx);
+					for(; absy<0x400; absy<<=1, --expy);
+					expx += absx >> 10;
+					expy += absy >> 10;
+					int mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
+					for(int d=expx-expy; d; --d)
+					{
+						if(!Q && mx == my)
+							return 0;
+						if(mx >= my)
+						{
+							mx -= my;
+							q += Q;
+						}
+						mx <<= 1;
+						q <<= Q;
+					}
+					if(!Q && mx == my)
+						return 0;
+					if(mx >= my)
+					{
+						mx -= my;
+						++q;
+					}
+					if(Q && !mx)
+						return 0;
+					for(; mx<0x400; mx<<=1, --expy);
+					x = (expy>0) ? ((expy<<10)|(mx&0x3FF)) : (mx>>(1-expy));
+				}
+				if(R)
+				{
+					bool sub = false;
+					if(y < 0x800)
+					{
+						unsigned int x2 = (x<0x400) ? (x<<1) : (x+0x400);
+						sub = x2 > y || (x2 == y && (q&1));
+					}
+					else
+					{
+						unsigned int yhalf = y - 0x400;
+						sub = x > yhalf || (x == yhalf && (q&1));
+					}
+					if(sub)
+					{
+						int exp = (y>>10) + (y<=0x3FF), d = exp - (x>>10) - (x<=0x3FF);
+						int m = (((y&0x3FF)|((y>0x3FF)<<10))<<1) - (((x&0x3FF)|((x>0x3FF)<<10))<<(1-d));
+						for(; m<0x800 && exp>1; m<<=1, --exp);
+						x = 0x8000 | ((exp-1)<<10)+(m>>1);
+						q += Q;
+					}
+				}
+				return x;
 			}
 
 			static double erf(double arg)
