@@ -50,7 +50,7 @@
 	bool success = unary_test(#func, [&](half arg) -> bool { \
 		half a = func(arg), b(std::func(static_cast<float>(arg))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		/*std::cout << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
+		/*std::cerr << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
 		err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); } return equal; }); \
 	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
 
@@ -59,7 +59,7 @@
 	bool success = binary_test(#func, [&](half x, half y) -> bool { \
 		half a = func(x, y), b(std::func(static_cast<float>(x), static_cast<float>(y))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		std::cout << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
+		std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); } return equal; }); \
 	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
 
@@ -69,7 +69,7 @@
 		half a = func(x, y, z), b(std::func(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
 		func(x, y, z); \
-		/*std::cout << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
+		/*std::cerr << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))), std::abs(static_cast<double>(z)))); } return equal; }); \
 	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
 
@@ -155,7 +155,7 @@ public:
 
 	unsigned int test()
 	{
-//		std::fesetround(FE_UPWARD);
+//		std::fesetround(FE_TOWARDZERO);
 
 		//test size
 /*		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
@@ -259,10 +259,10 @@ public:
 
 #if HALF_ENABLE_CPP11_CMATH
 		//test basic functions
-		BINARY_MATH_TEST(remainder);
-		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; bool eq = comp(remquo(a, b, &qh), 
+*/		BINARY_MATH_TEST(remainder);
+		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; bool eq = comp(remquo(a, b, &qh),
 			static_cast<half>(std::remquo(static_cast<float>(a), static_cast<float>(b), &qf))); return eq && (qh&7)==(qf&7); });
-		BINARY_MATH_TEST(fmin);
+/*		BINARY_MATH_TEST(fmin);
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
@@ -612,16 +612,17 @@ private:
 
 int main(int argc, char *argv[])
 {
-/*	unsigned int sum = 0;
+	unsigned int sum = 0;
+	int q = 0;
 	{
 		timer time;
-		for(unsigned int i=0; i<5000; ++i)
-			for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); ++a)
-				sum += h2b(sqrt(b2h(a))));
+		for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); a+=8)
+			for(unsigned int b=0; b<std::numeric_limits<std::uint16_t>::max(); b+=8)
+				sum += h2b(fmod(b2h(a), b2h(b)));
 	}
 	std::cout << sum;
 	return 0;
-*/
+
 	half pi = half_cast<half,std::round_to_nearest>(3.1415926535897932384626433832795L);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;
