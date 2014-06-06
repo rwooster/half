@@ -1090,10 +1090,9 @@ namespace half_float
 						value |= (exp<<10) | ((m>>10)&0x3FF);
 					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
 					{
-						m >>= 10;
-						s |= g;
-						for(; exp; ++exp,m>>=1)
+						for(m>>=10; exp; ++exp,m>>=1)
 							s |= m & 1;
+						s |= g;
 						g = m & 1;
 						value |= m >> 1;
 					}
@@ -1132,9 +1131,8 @@ namespace half_float
 				int exp = 15;
 				for(; absx<0x400; absx<<=1,--exp) ;
 				for(; absy<0x400; absy<<=1,++exp) ;
-				long mx = ((absx&0x3FF)|0x400L) << 1, my = ((absy&0x3FF)|0x400L) << 1;
+				long mx = ((absx&0x3FF)|0x400L), my = ((absy&0x3FF)|0x400L);
 				int i = mx < my;
-				mx <<= i;
 				exp += (absx>>10) - (absy>>10) - i;
 				if(exp > 30)
 				{
@@ -1147,21 +1145,21 @@ namespace half_float
 				}
 				else if(exp > -11)
 				{
-					std::ldiv_t div = std::div(mx<<11, my);
-					int m = div.quot, g = m & 1, s = div.rem != 0;
-					m >>= 1;
+					mx <<= 12 + i;
+					my <<= 1;
+					int m = mx / my, g = m & 1, s = mx%my != 0;
 					if(exp > 0)
-						value |= (exp<<10) | (m&0x3FF);
+						value |= (exp<<10) | ((m>>1)&0x3FF);
 					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
 					{
-						s |= g;
-						for(; exp; ++exp,m>>=1)
+						for(m>>=1; exp; ++exp,m>>=1)
 							s |= m & 1;
+						s |= g;
 						g = m & 1;
 						value |= m >> 1;
 					}
 					else
-						value |= m >> (1-exp);
+						value |= m >> (2-exp);
 					if(half::round_style == std::round_to_nearest)
 						#if HALF_ROUND_TIES_TO_EVEN
 							value += g & (s|value);
@@ -1220,7 +1218,7 @@ namespace half_float
 				uint16 sign = x.data_ & 0x8000;
 				if(absx == absy)
 					return half(binary, sign);
-				return half(binary, sign | mod<false,false>(absx, absy, q));
+				return half(binary, sign|mod<false,false>(absx, absy, q));
 			}
 
 			/// Remainder implementation.
@@ -2040,7 +2038,7 @@ namespace half_float
 			static int fpclassify(half arg)
 			{
 				unsigned int abs = arg.data_ & 0x7FFF;
-				return abs ? ((abs>0x3FF) ? ((abs>=0x7C00) ? ((abs>0x7C00) ? FP_NAN : FP_INFINITE) : FP_NORMAL) :FP_SUBNORMAL) : FP_ZERO;
+				return abs ? ((abs>0x3FF) ? ((abs>=0x7C00) ? ((abs>0x7C00) ? FP_NAN : FP_INFINITE) : FP_NORMAL) : FP_SUBNORMAL) : FP_ZERO;
 			}
 
 			/// Classification implementation.
@@ -2158,8 +2156,8 @@ namespace half_float
 				if(x > y)
 				{
 					int absx = x, absy = y, expx = 0, expy = 0;
-					for(; absx<0x400; absx<<=1, --expx);
-					for(; absy<0x400; absy<<=1, --expy);
+					for(; absx<0x400; absx<<=1,--expx) ;
+					for(; absy<0x400; absy<<=1,--expy) ;
 					expx += absx >> 10;
 					expy += absy >> 10;
 					int mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
@@ -2188,7 +2186,7 @@ namespace half_float
 						if(!mx)
 							return 0;
 					}
-					for(; mx<0x400; mx<<=1, --expy);
+					for(; mx<0x400; mx<<=1,--expy) ;
 					x = (expy>0) ? ((expy<<10)|(mx&0x3FF)) : (mx>>(1-expy));
 				}
 				if(R)
@@ -2208,8 +2206,8 @@ namespace half_float
 					{
 						int exp = (y>>10) + (y<=0x3FF), d = exp - (x>>10) - (x<=0x3FF);
 						int m = (((y&0x3FF)|((y>0x3FF)<<10))<<1) - (((x&0x3FF)|((x>0x3FF)<<10))<<(1-d));
-						for(; m<0x800 && exp>1; m<<=1, --exp);
-						x = 0x8000 | ((exp-1)<<10)+(m>>1);
+						for(; m<0x800 && exp>1; m<<=1,--exp) ;
+						x = 0x8000 | ((exp-1)<<10) + (m>>1);
 						q += Q;
 					}
 				}
@@ -2885,12 +2883,7 @@ namespace std
 		static HALF_CONSTEXPR_CONST float_denorm_style has_denorm = denorm_present;
 
 		/// Rounding mode.
-		/// Due to the mix of internal single-precision computations (using the rounding mode of the underlying 
-		/// single-precision implementation) with the rounding mode of the single-to-half conversions, the actual rounding 
-		/// mode might be `std::round_indeterminate` if the default half-precision rounding mode doesn't match the 
-		/// single-precision rounding mode.
-		static HALF_CONSTEXPR_CONST float_round_style round_style = (std::numeric_limits<float>::round_style==
-			half_float::half::round_style) ? half_float::half::round_style : round_indeterminate;
+		static HALF_CONSTEXPR_CONST float_round_style round_style = half_float::half::round_style;
 
 		/// Significant digits.
 		static HALF_CONSTEXPR_CONST int digits = 11;

@@ -182,12 +182,12 @@ public:
 			return comp(static_cast<half>(f--), arg--) && comp(static_cast<half>(f), arg); });
 		unary_test("unary plus", [](half arg) { return comp(+arg, arg); });
 		unary_test("unary minus", [](half arg) { return comp(-arg, static_cast<half>(-static_cast<float>(arg))); });
-
+*/
 		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b))); });
 		binary_test("subtraction", [](half a, half b) { return comp(a-b, static_cast<half>(static_cast<float>(a)-static_cast<float>(b))); });
 		binary_test("multiplication", [](half a, half b) { return comp(a*b, static_cast<half>(static_cast<float>(a)*static_cast<float>(b))); });
 		binary_test("division", [](half a, half b) { return comp(a/b, static_cast<half>(static_cast<float>(a)/static_cast<float>(b))); });
-		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
+/*		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
 		binary_test("not equal", [](half a, half b) { return (a!=b) == (static_cast<float>(a)!=static_cast<float>(b)); });
 		binary_test("less", [](half a, half b) { return (a<b) == (static_cast<float>(a)<static_cast<float>(b)); });
 		binary_test("greater", [](half a, half b) { return (a>b) == (static_cast<float>(a)>static_cast<float>(b)); });
@@ -259,10 +259,10 @@ public:
 
 #if HALF_ENABLE_CPP11_CMATH
 		//test basic functions
-*/		BINARY_MATH_TEST(remainder);
+		BINARY_MATH_TEST(remainder);
 		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; bool eq = comp(remquo(a, b, &qh),
 			static_cast<half>(std::remquo(static_cast<float>(a), static_cast<float>(b), &qf))); return eq && (qh&7)==(qf&7); });
-/*		BINARY_MATH_TEST(fmin);
+		BINARY_MATH_TEST(fmin);
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
@@ -616,9 +616,9 @@ int main(int argc, char *argv[])
 	int q = 0;
 	{
 		timer time;
-		for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); a+=8)
-			for(unsigned int b=0; b<std::numeric_limits<std::uint16_t>::max(); b+=8)
-				sum += h2b(remquo(b2h(a), b2h(b), &q));
+		for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); a+=4)
+			for(unsigned int b=0; b<std::numeric_limits<std::uint16_t>::max(); b+=4)
+				sum += h2b(b2h(a)+b2h(b));
 	}
 	std::cout << sum;
 	return 0;
