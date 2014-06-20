@@ -1053,7 +1053,7 @@ namespace half_float
 
 			static half multiplies(half x, half y)
 			{
-				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, exp = -15;
 				if(absx > 0x7C00)
 					return x;
 				if(absy > 0x7C00)
@@ -1065,7 +1065,6 @@ namespace half_float
 					return half(binary, !absx ? 0x7FFF : (value|0x7C00));
 				if(!absx || !absy)
 					return half(binary, value);
-				int exp = -15;
 				for(; absx<0x400; absx<<=1,--exp) ;
 				for(; absy<0x400; absy<<=1,--exp) ;
 				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
@@ -1118,7 +1117,7 @@ namespace half_float
 
 			static half divides(half x, half y)
 			{
-				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, exp = 15;
 				if(absx > 0x7C00)
 					return x;
 				if(absy > 0x7C00)
@@ -1128,7 +1127,6 @@ namespace half_float
 					return half(binary, (absx==absy) ? 0x7FFF : (value|0x7C00));
 				if(absy == 0x7C00 || !absx)
 					return half(binary, (absx==absy) ? 0x7FFF : value);
-				int exp = 15;
 				for(; absx<0x400; absx<<=1,--exp) ;
 				for(; absy<0x400; absy<<=1,++exp) ;
 				long mx = ((absx&0x3FF)|0x400L), my = ((absy&0x3FF)|0x400L);
@@ -1299,7 +1297,7 @@ namespace half_float
 			/// \return \a x * \a y + \a z
 			static half fma(half x, half y, half z)
 			{
-				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, absz = z.data_ & 0x7FFF;
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, absz = z.data_ & 0x7FFF, exp = -15;
 				if(absx > 0x7C00)
 					return x;
 				if(absy > 0x7C00)
@@ -1314,7 +1312,6 @@ namespace half_float
 					return half(binary, (!absx || (sub && absz==0x7C00)) ? 0x7FFF : (value|0x7C00));
 				if(absz == 0x7C00 || !absx || !absy)
 					return z;
-				int exp = -15;
 				for(; absx<0x400; absx<<=1,--exp) ;
 				for(; absy<0x400; absy<<=1,--exp) ;
 				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
@@ -1433,13 +1430,83 @@ namespace half_float
 			/// Binary exponential implementation.
 			/// \param arg function argument
 			/// \return function value
-			static half exp2(float arg)
+			static half exp2(half arg)
 			{
+				static const unsigned int N = 32;
+/*				static const uint32 logs[32] = {
+					0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B,
+					0x00B84E23, 0x005C3E10, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153,
+					0x0000B8AA, 0x00005C55, 0x00002E2B, 0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171,
+					0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000C, 0x00000006, 0x00000003, 0x00000001 };
+*/				static const uint32 logs[32] = {
+					0x80000000, 0x4AE00D1C, 0x2934F097, 0x15C01A39, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D0, 0x016FE50B,
+					0x00B84E23, 0x005C3E0F, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53A, 0x0002E2A3, 0x00017153,
+					0x0000B8A9, 0x00005C55, 0x00002E2A, 0x00001715, 0x00000B8A, 0x000005C5, 0x000002E2, 0x00000171,
+					0x000000B8, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000B, 0x00000005, 0x00000002, 0x00000001 };
 			#if HALF_ENABLE_CPP11_CMATH
 				return half(std::exp2(arg));
 			#else
 				return half(static_cast<float>(std::exp(arg*0.69314718055994530941723212145818)));
 			#endif
+				unsigned int abs = arg.data_ & 0x7FFF;
+				if(abs > 0x7C00)
+					return arg;
+				if(abs == 0x7C00)
+					return half(binary, 0x7C00&((arg.data_>>15)-1U));
+				if(!abs)
+					return half(binary, 0x3C00);
+
+				unsigned long m, mx = 1UL << (N-1), my = 0;
+				int e = (abs>>10) + (abs<=0x3FF) - 15, exp = (abs&0x3FF) + ((abs>0x3FF)<<10);
+				if(e < 10)
+				{
+					m = (static_cast<unsigned long>(exp)<<(N-11+e)) & ((1<<(N-1))-1);
+					exp >>= 10 - e;
+				}
+				else
+				{
+					m = 0;
+					exp <<= e - 10;
+				}
+
+				if(m)
+				{
+					for(unsigned int i=1; i<N; ++i)
+					{
+						unsigned long mz = my + logs[i];
+						if(mz <= m)
+						{
+							my = mz;
+							mx += mx >> i;
+						}
+					}
+				}
+
+				int g, s = my != m;
+				if(arg.data_ & 0x8000)
+				{
+					exp = 15 - exp;
+				}
+				else
+				{
+					if(exp > 15)
+						return half(binary, 0x7BFF+(half::round_style!=std::round_toward_zero && half::round_style!=std::round_toward_neg_infinity));
+					g = (mx>>(N-12)) & 1;
+					s |= mx & ((1UL<<(N-12))-1) != 0;
+					exp += 15;
+				}
+
+				uint16 value = (exp<<10) | ((mx>>(N-11))&0x3FF);
+
+				if(half::round_style == std::round_to_nearest)
+					#if HALF_ROUND_TIES_TO_EVEN
+						value += g & (s|value);
+					#else
+						value += g;
+					#endif
+				else if(half::round_style == std::round_toward_infinity)
+					value += g | s;
+				return half(binary, value);
 			}
 
 			/// Logarithm implementation.
@@ -1467,13 +1534,69 @@ namespace half_float
 			/// Binary logarithm implementation.
 			/// \param arg function argument
 			/// \return function value
-			static half log2(float arg)
+			static half log2(half arg)
 			{
-			#if HALF_ENABLE_CPP11_CMATH
+				static const unsigned int N = 32;
+/*				static const uint32 logs[32] = {
+					0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B,
+					0x00B84E23, 0x005C3E10, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153,
+					0x0000B8AA, 0x00005C55, 0x00002E2B, 0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171,
+					0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000C, 0x00000006, 0x00000003, 0x00000001 };
+*/				static const uint32 logs[32] = {
+					0x80000000, 0x4AE00D1C, 0x2934F097, 0x15C01A39, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D0, 0x016FE50B,
+					0x00B84E23, 0x005C3E0F, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53A, 0x0002E2A3, 0x00017153,
+					0x0000B8A9, 0x00005C55, 0x00002E2A, 0x00001715, 0x00000B8A, 0x000005C5, 0x000002E2, 0x00000171,
+					0x000000B8, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000B, 0x00000005, 0x00000002, 0x00000001 };
+/*			#if HALF_ENABLE_CPP11_CMATH
 				return half(std::log2(arg));
 			#else
 				return half(static_cast<float>(std::log(static_cast<double>(arg))*1.4426950408889634073599246810019));
 			#endif
+*/				int abs = arg.data_ & 0x7FFF, ilog = -15;
+				if(!abs)
+					return half(binary, 0xFC00);
+				if(arg.data_ & 0x8000)
+					return half(binary, 0x7FFF);
+				if(abs >= 0x7C00)
+					return arg;
+				for(; abs<0x400; abs<<=1,--ilog) ;
+				ilog += abs >> 10;
+
+				unsigned long m = ((abs&0x3FF)|0x400UL) << (N-11), mx = 1UL << (N-1), my = 0;
+				if(m != mx)
+				{
+					for(unsigned int i=1; i<N; ++i)
+					{
+						unsigned long mz = mx + (mx>>i);
+						if(mz <= m)
+						{
+							mx = mz;
+							my += logs[i];
+						}
+					}
+					my = (my|(((my&0xF)!=0||mx!=m)<<4)) >> 4;
+				}
+
+				m = (ilog<0) ? ((static_cast<unsigned long>(-ilog)<<(N-5))-my) : ((static_cast<unsigned long>(ilog)<<(N-5))+my);
+
+				int exp = 14, s = 0;
+				for(; m>0xFFFFFFF; m>>=1, ++exp)
+					s |= m & 1;
+				for(; m<0x8000000 && exp; m<<=1,--exp) ;
+				int g = (m>>(N-16)) & 1;
+				s = m & ((1UL<<(N-16))-1) != 0;
+				uint16 value = ((ilog<0)<<15) | (exp<<10) + (m>>(N-15));
+				if(half::round_style == std::round_to_nearest)
+					#if HALF_ROUND_TIES_TO_EVEN
+						value += g & (s|value);
+					#else
+						value += g;
+					#endif
+				else if(half::round_style == std::round_toward_infinity)
+					value += ~(value>>15) & (g|s);
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += (value>>15) & (g|s);
+				return half(binary, value);
 			}
 
 			/// Square root implementation.
@@ -1483,10 +1606,9 @@ namespace half_float
 			{
 				if(arg.data_ & 0x8000 && arg.data_ != 0x8000)
 					arg.data_ |= 0x7FFF;
-				int abs = arg.data_ & 0x7FFF;
+				int abs = arg.data_ & 0x7FFF, exp = 15;
 				if(!abs || abs >= 0x7C00)
 					return arg;
-				int exp = 15;
 				for(; abs<0x400; abs<<=1,--exp) ;
 				exp += abs >> 10;
 				long m = 0, r = ((abs&0x3FF)|0x400L) << ((exp&1)+10);
@@ -1525,34 +1647,6 @@ namespace half_float
 				int abs = arg.data_ & 0x7FFF;
 				if(!abs || abs >= 0x7C00)
 					return arg;
-				int exp = 15;
-				for(; abs<0x400; abs<<=1, --exp);
-				exp += abs >> 10;
-				long m = 0, r = ((abs&0x3FF)|0x400L) << ((exp&1)+12);
-				exp /= 2;
-				for(long bit=0x400000L; bit; bit>>=2)
-				{
-					if(r < m+bit)
-						m >>= 1;
-					else
-					{
-						r -= m + bit;
-						m = (m>>1) + bit;
-					}
-				}
-				int g = m & 1, s = r != 0;
-				uint16 value = (arg.data_&0x8000) | (exp<<10) | ((m>>1)&0x3FF);
-				if(half::round_style == std::round_to_nearest)
-					#if HALF_ROUND_TIES_TO_EVEN
-						value += g & (s|value);
-					#else
-						value += g;
-					#endif
-				else if(half::round_style == std::round_toward_infinity)
-					value += ~(value>>15) & (g|s);
-				else if(half::round_style == std::round_toward_neg_infinity)
-					value += (value>>15) & (g|s);
-				return half(binary, value);
 			}
 
 			/// Hypotenuse implementation.
@@ -1561,7 +1655,7 @@ namespace half_float
 			/// \return function value
 			static half hypot(half x, half y)
 			{
-				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, expx = 0, expy = 0;
 				if(absx == 0x7C00 || absy == 0x7C00)
 					return half(binary, 0x7C00);
 				if(absx > 0x7C00)
@@ -1572,7 +1666,6 @@ namespace half_float
 					return half(binary, absy);
 				if(!absy)
 					return half(binary, absx);
-				int expx = 0, expy = 0;
 				for(; absx<0x400; absx<<=1,--expx) ;
 				for(; absy<0x400; absy<<=1,--expy) ;
 				unsigned long mx = (absx&0x3FF) | 0x400L, my = (absy&0x3FF) | 0x400L;
