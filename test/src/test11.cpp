@@ -271,8 +271,8 @@ public:
 		UNARY_MATH_TEST(exp2);
 		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
-*/		UNARY_MATH_TEST(log2);
-/*
+		UNARY_MATH_TEST(log2);
+
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
 		BINARY_MATH_TEST(hypot);
