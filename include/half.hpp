@@ -835,7 +835,14 @@ namespace half_float
 		/// \name Mathematics
 		/// \{
 
-		template<bool Q,bool R> static uint16 mod(uint16 x, uint16 y, unsigned int &q)
+		/// Half precision modulus.
+		/// \tparam Q `true` to compute full quotient, `false` else
+		/// \tparam R `true` to compute signed remainder, `false` for positive remainder
+		/// \param x positive finite first operand
+		/// \param y positive finite second operand
+		/// \param q value to take quotient if computed, pre-initialized to 0
+		/// \return modulus of \a x / \a y
+		template<bool Q,bool R> uint16 mod(uint16 x, uint16 y, unsigned int &q)
 		{
 			if(x > y)
 			{
@@ -898,7 +905,10 @@ namespace half_float
 			return x;
 		}
 
-		static double erf(double arg)
+		/// Error function.
+		/// \param arg function argument
+		/// \return approximated value of error function
+		inline double erf(double arg)
 		{
 			if(builtin_isinf(arg))
 				return (arg<0.0) ? -1.0 : 1.0;
@@ -906,7 +916,10 @@ namespace half_float
 			return builtin_signbit(arg) ? -value : value;
 		}
 
-		static double lgamma(double arg)
+		/// Logarithm of gamma function.
+		/// \param arg function argument
+		/// \return approximated logarithm of gamma function
+		inline double lgamma(double arg)
 		{
 			double v = 1.0;
 			for(; arg<8.0; ++arg) v *= arg;
@@ -1556,8 +1569,10 @@ namespace half_float
 	/// \param out output stream to write into
 	/// \param arg half expression to write
 	/// \return reference to output stream
-	template<typename charT,typename traits> std::basic_ostream<charT,traits>&
-		operator<<(std::basic_ostream<charT,traits> &out, half arg) { return out << static_cast<float>(arg); }
+	template<typename charT,typename traits> std::basic_ostream<charT,traits>& operator<<(std::basic_ostream<charT,traits> &out, half arg)
+	{
+		return out << static_cast<float>(arg);
+	}
 
 	/// Input operator.
 	/// \param in input stream to read from
@@ -1624,17 +1639,17 @@ namespace half_float
 	/// \return remainder of floating point division.
 	inline half remquo(half x, half y, int *quo)
 	{
-		detail::uint16 sign = x.data_ & 0x8000;
-		bool qsign = (sign^y.data_) >> 15;
+		detail::uint16 value = x.data_ & 0x8000;
+		bool qsign = (value^y.data_) >> 15;
 		unsigned int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, q = 0;
 		if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
 			return half(detail::binary, 0x7FFF);
 		if(absy == 0x7C00)
 			return *quo = 0, x;
 		if(absx == absy)
-			return *quo = qsign ? -1 : 1, half(detail::binary, sign);
-		absx = detail::mod<true,true>(absx, absy, q);
-		return *quo = qsign ? -static_cast<int>(q) : static_cast<int>(q), half(detail::binary, absx^sign);
+			return *quo = 2*qsign-1, half(detail::binary, value);
+		value ^= detail::mod<true, true>(absx, absy, q);
+		return *quo = qsign ? -static_cast<int>(q) : static_cast<int>(q), half(detail::binary, value);
 	}
 
 	/// Fused multiply add.
@@ -2043,7 +2058,7 @@ namespace half_float
 		return half((arg.data_&0x8000) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
 			static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
 	#endif
-//		int abs = arg.data_ & 0x7FFF;
+		int abs = arg.data_ & 0x7FFF;
 		if(!abs || abs >= 0x7C00)
 			return arg;
 	}
@@ -2548,12 +2563,13 @@ namespace half_float
 	/// \return next representable value after \a from in direction towards \a to
 	inline half nexttoward(half from, long double to)
 	{
-		if(isnan(from))
+		detail::uint16 fabs = from.data_ & 0x7FFF;
+		if(fabs > 0x7C00)
 			return from;
 		long double lfrom = static_cast<long double>(from);
 		if(detail::builtin_isnan(to) || lfrom == to)
 			return half(static_cast<float>(to));
-		if(!(from.data_&0x7FFF))
+		if(!fabs)
 			return half(detail::binary, (static_cast<detail::uint16>(detail::builtin_signbit(to))<<15)+1);
 		return half(detail::binary, from.data_+(((from.data_>>15)^static_cast<unsigned>(lfrom<to))<<1)-1);
 	}
