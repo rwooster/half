@@ -259,17 +259,17 @@ public:
 
 #if HALF_ENABLE_CPP11_CMATH
 		//test basic functions
-*/		BINARY_MATH_TEST(remainder);
+		BINARY_MATH_TEST(remainder);
 		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; bool eq = comp(remquo(a, b, &qh),
 			static_cast<half>(std::remquo(static_cast<float>(a), static_cast<float>(b), &qf))); return eq && (qh&7)==(qf&7); });
-/*		BINARY_MATH_TEST(fmin);
+		BINARY_MATH_TEST(fmin);
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
 
 		//test exponential functions
-		UNARY_MATH_TEST(exp2);
-		UNARY_MATH_TEST(expm1);
+*/		UNARY_MATH_TEST(exp2);
+/*		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
 		UNARY_MATH_TEST(log2);
 
