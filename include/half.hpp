@@ -1880,7 +1880,7 @@ namespace half_float
 		const unsigned long *logs = sign ? logs_down : logs_down;
 
 		unsigned long m, mx = 1UL << (N-1), my = 0;
-		int e = (abs>>10) + (abs<=0x3FF) - 15, exp = (abs&0x3FF) + ((abs>0x3FF)<<10), s = 0;
+		int e = (abs>>10) + (abs<=0x3FF) - 15, exp = (abs&0x3FF) + ((abs>0x3FF)<<10), g, s = 0;
 		if(e < 10)
 		{
 			m = (static_cast<unsigned long>(exp)<<(N-11+e)) & ((1<<(N-1))-1);
@@ -1906,28 +1906,37 @@ namespace half_float
 			s = 1;//my != m;
 		}
 
+		detail::uint16 value;
 		if(sign)
 		{
 			my = 1UL << (N-1);
-			if(mx < my)
+			int i = mx == my;
+			my >>= i;
+			exp += 1 - i;
+			mx >>= 16;
+			s |= my % mx;
+			mx = my / mx;
+			g = (mx>>(N-28)) & 1;
+			s |= mx & ((1UL<<(N-28))-1) != 0;
+			if(exp < 15)
+				value = ((15-exp)<<10) | ((mx>>(N-27))&0x3FF);
+			else if(exp <= 25)
 			{
-				mx >>= 1;
-				s |= my % mx;
-				mx = my / mx;
-				++exp;
+				g = (mx>>(N-42+exp)) & 1;
+				s |= mx & ((1UL<<(N-42+exp))-1) != 0;
+				value = mx >> (N-41+exp);
 			}
-			exp = 15 - exp;
+			else
+				value = 0;
 		}
 		else
 		{
 			if(exp > 15)
 				return half(detail::binary, 0x7BFF+(half::round_style!=std::round_toward_zero && half::round_style!=std::round_toward_neg_infinity));
-			exp += 15;
+			g = (mx>>(N-12)) & 1;
+			s |= mx & ((1UL<<(N-12))-1) != 0;
+			value = ((exp+15)<<10) | ((mx>>(N-11))&0x3FF);
 		}
-		int g = (mx>>(N-12)) & 1;
-		s |= mx & ((1UL<<(N-12))-1) != 0;
-
-		detail::uint16 value = (exp<<10) | ((mx>>(N-11))&0x3FF);
 
 		if(half::round_style == std::round_to_nearest)
 			#if HALF_ROUND_TIES_TO_EVEN
@@ -1992,6 +2001,7 @@ namespace half_float
 			return arg;
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
+		bool sign = ilog < 0;
 
 		unsigned long m = ((abs&0x3FF)|0x400UL) << (N-11), mx = 1UL << (N-1), my = 0;
 		if(m != mx)
@@ -2008,7 +2018,7 @@ namespace half_float
 			my = (my|(((my&0xF)!=0||mx!=m)<<4)) >> 4;
 		}
 
-		m = (ilog<0) ? ((static_cast<unsigned long>(-ilog)<<(N-5))-my) : ((static_cast<unsigned long>(ilog)<<(N-5))+my);
+		m = sign ? ((static_cast<unsigned long>(-ilog)<<(N-5))-my) : ((static_cast<unsigned long>(ilog)<<(N-5))+my);
 
 		int exp = 14, s = 0;
 		for(; m>0xFFFFFFF; m>>=1, ++exp)
@@ -2016,7 +2026,7 @@ namespace half_float
 		for(; m<0x8000000 && exp; m<<=1,--exp) ;
 		int g = (m>>(N-16)) & 1;
 		s = m & ((1UL<<(N-16))-1) != 0;
-		detail::uint16 value = ((ilog<0)<<15) | (exp<<10) + (m>>(N-15));
+		detail::uint16 value = (static_cast<unsigned>(sign)<<15) | (exp<<10) + (m>>(N-15));
 		if(half::round_style == std::round_to_nearest)
 			#if HALF_ROUND_TIES_TO_EVEN
 				value += g & (s|value);
