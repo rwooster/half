@@ -268,11 +268,11 @@ public:
 		TERNARY_MATH_TEST(fma);
 
 		//test exponential functions
-*/		UNARY_MATH_TEST(exp2);
-/*		UNARY_MATH_TEST(expm1);
+		UNARY_MATH_TEST(exp2);
+		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
-		UNARY_MATH_TEST(log2);
-
+*/		UNARY_MATH_TEST(log2);
+/*
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
 		BINARY_MATH_TEST(hypot);
@@ -616,9 +616,9 @@ int main(int argc, char *argv[])
 	int q = 0;
 	{
 		timer time;
-		for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); a+=4)
-			for(unsigned int b=0; b<std::numeric_limits<std::uint16_t>::max(); b+=4)
-				sum += h2b(b2h(a)+b2h(b));
+		for(unsigned int i=0; i<100; ++i)
+			for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); ++a)
+				sum += h2b(log2(b2h(a)));
 	}
 	std::cout << sum;
 	return 0;

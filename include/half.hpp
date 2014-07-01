@@ -1412,7 +1412,7 @@ namespace half_float
 				}
 			}
 		}
-		s |= (m|(m>>1)) & 1;
+		s |= (m&0x3) != 0;
 		int g = (m>>2) & 1;
 		value |= ((exp-1)<<10) + (m>>3);
 		if(half::round_style == std::round_to_nearest)
@@ -1647,14 +1647,12 @@ namespace half_float
 	{
 		detail::uint16 value = x.data_ & 0x8000;
 		bool qsign = (value^y.data_) >> 15;
-		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, q;
+		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, q = 1;
 		if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
 			return half(detail::binary, 0x7FFF);
 		if(absy == 0x7C00)
 			return *quo = 0, x;
-		if(absx == absy)
-			q = 1;
-		else
+		if(absx != absy)
 			value ^= detail::mod<true, true>(absx, absy, &q);
 		return *quo = qsign ? -q : q, half(detail::binary, value);
 	}
@@ -1854,12 +1852,12 @@ namespace half_float
 			0x00B84E23, 0x005C3E10, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153,
 			0x0000B8AA, 0x00005C55, 0x00002E2B, 0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171,
 			0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000C, 0x00000006, 0x00000003, 0x00000001 };
-		static const unsigned long logs_up[32] ={
+		static const unsigned long logs_up[32] = {
 			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7E, 0x05AEB4DE, 0x02DCF2D1, 0x016FE50C,
 			0x00B84E24, 0x005C3E10, 0x002E24CB, 0x001713D7, 0x000B8A48, 0x0005C53B, 0x0002E2A4, 0x00017154,
 			0x0000B8AA, 0x00005C56, 0x00002E2B, 0x00001716, 0x00000B8B, 0x000005C6, 0x000002E3, 0x00000172,
 			0x000000B9, 0x0000005D, 0x0000002F, 0x00000018, 0x0000000C, 0x00000006, 0x00000003, 0x00000002 };
-		static const unsigned long logs_down[32] ={
+		static const unsigned long logs_down[32] = {
 			0x80000000, 0x4AE00D1C, 0x2934F097, 0x15C01A39, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D0, 0x016FE50B,
 			0x00B84E23, 0x005C3E0F, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53A, 0x0002E2A3, 0x00017153,
 			0x0000B8A9, 0x00005C55, 0x00002E2A, 0x00001715, 0x00000B8A, 0x000005C5, 0x000002E2, 0x00000171,
@@ -1977,12 +1975,17 @@ namespace half_float
 	inline half log2(half arg)
 	{
 		static const unsigned int N = 32;
-/*		static const detail::uint32 logs[32] = {
+		static const unsigned long logs_nearest[32] = {
 			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B,
 			0x00B84E23, 0x005C3E10, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153,
 			0x0000B8AA, 0x00005C55, 0x00002E2B, 0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171,
 			0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000C, 0x00000006, 0x00000003, 0x00000001 };
-*/		static const detail::uint32 logs[32] = {
+		static const unsigned long logs_up[32] = {
+			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7E, 0x05AEB4DE, 0x02DCF2D1, 0x016FE50C,
+			0x00B84E24, 0x005C3E10, 0x002E24CB, 0x001713D7, 0x000B8A48, 0x0005C53B, 0x0002E2A4, 0x00017154,
+			0x0000B8AA, 0x00005C56, 0x00002E2B, 0x00001716, 0x00000B8B, 0x000005C6, 0x000002E3, 0x00000172,
+			0x000000B9, 0x0000005D, 0x0000002F, 0x00000018, 0x0000000C, 0x00000006, 0x00000003, 0x00000002 };
+		static const unsigned long logs_down[32] = {
 			0x80000000, 0x4AE00D1C, 0x2934F097, 0x15C01A39, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D0, 0x016FE50B,
 			0x00B84E23, 0x005C3E0F, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53A, 0x0002E2A3, 0x00017153,
 			0x0000B8A9, 0x00005C55, 0x00002E2A, 0x00001715, 0x00000B8A, 0x000005C5, 0x000002E2, 0x00000171,
@@ -2002,11 +2005,12 @@ namespace half_float
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
 		bool sign = ilog < 0;
+		const unsigned long *logs = logs_down;
 
-		unsigned long m = ((abs&0x3FF)|0x400UL) << (N-11), mx = 1UL << (N-1), my = 0;
+		unsigned long m = ((abs&0x3FF)|0x400UL) << (N-12), mx = 1UL << (N-2), my = 0;
 		if(m != mx)
 		{
-			for(unsigned int i=1; i<N; ++i)
+			for(unsigned int i=1; i<N-1; ++i)
 			{
 				unsigned long mz = mx + (mx>>i);
 				if(mz <= m)
@@ -2016,14 +2020,15 @@ namespace half_float
 				}
 			}
 			my = (my|(((my&0xF)!=0||mx!=m)<<4)) >> 4;
+			my |= 1;
 		}
 
 		m = sign ? ((static_cast<unsigned long>(-ilog)<<(N-5))-my) : ((static_cast<unsigned long>(ilog)<<(N-5))+my);
 
 		int exp = 14, s = 0;
-		for(; m>0xFFFFFFF; m>>=1, ++exp)
-			s |= m & 1;
 		for(; m<0x8000000 && exp; m<<=1,--exp) ;
+		for(; m>0xFFFFFFF; m>>=1,++exp)
+			s |= m & 1;
 		int g = (m>>(N-16)) & 1;
 		s = m & ((1UL<<(N-16))-1) != 0;
 		detail::uint16 value = (static_cast<unsigned>(sign)<<15) | (exp<<10) + (m>>(N-15));
