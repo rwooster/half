@@ -1393,6 +1393,8 @@ namespace half_float
 		if(sub)
 		{
 			m = mx - my;
+			if(!m)
+				return half(detail::binary, static_cast<unsigned>(half::round_style==std::round_toward_neg_infinity)<<15);
 			for(; m<0x2000 && exp>1; m<<=1,--exp) ;
 		}
 		else
@@ -1713,7 +1715,7 @@ namespace half_float
 			{
 				m = std::abs(m-mz);
 				if(!m)
-					return half(detail::binary, value);
+					return half(detail::binary, static_cast<unsigned>(half::round_style==std::round_toward_neg_infinity)<<15);
 				for(; m<0x800000; m<<=1,--exp) ;
 			}
 			else
