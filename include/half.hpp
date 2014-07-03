@@ -963,56 +963,60 @@ namespace half_float
 	/// assumption that the data of a half is just comprised of the 2 bytes of the underlying IEEE representation.
 	class half
 	{
-		friend bool operator==(half x, half y);
-		friend bool operator!=(half x, half y);
-		friend bool operator<(half x, half y);
-		friend bool operator>(half x, half y);
-		friend bool operator<=(half x, half y);
-		friend bool operator>=(half x, half y);
-		friend HALF_CONSTEXPR half operator-(half arg);
-		friend half operator+(half x, half y);
-		friend half operator*(half x, half y);
-		friend half operator/(half x, half y);
-		friend half fabs(half arg);
-		friend half fmod(half x, half y);
-		friend half remainder(half x, half y);
-		friend half remquo(half x, half y, int *quo);
-		friend half fma(half x, half y, half z);
-		friend half fmax(half x, half y);
-		friend half fmin(half x, half y);
-		friend half fdim(half x, half y);
-		friend half exp2(half arg);
-		friend half log2(half arg);
-		friend half sqrt(half arg);
-		friend half cbrt(half arg);
-		friend half hypot(half x, half y);
-		friend half lgamma(half arg);
-		friend half tgamma(half arg);
-		friend half ceil(half arg);
-		friend half floor(half arg);
-		friend half trunc(half arg);
-		friend half round(half arg);
-		friend long lround(half arg);
-		friend half rint(half arg);
-		friend long lrint(half arg);
+		friend bool operator==(half, half);
+		friend bool operator!=(half, half);
+		friend bool operator<(half, half);
+		friend bool operator>(half, half);
+		friend bool operator<=(half, half);
+		friend bool operator>=(half, half);
+		friend HALF_CONSTEXPR half operator-(half);
+		friend half operator+(half, half);
+		friend half operator*(half, half);
+		friend half operator/(half, half);
+		friend half fabs(half);
+		friend half fmod(half, half);
+		friend half remainder(half, half);
+		friend half remquo(half, half, int*);
+		friend half fma(half, half, half);
+		friend half fmax(half, half);
+		friend half fmin(half, half);
+		friend half fdim(half, half);
+		friend half exp2(half);
+		friend half log2(half);
+		friend half sqrt(half);
+		friend half cbrt(half);
+		friend half hypot(half, half);
+		friend half asin(half);
+		friend half acos(half);
+		friend half atan(half);
+		friend half atan2(half, half);
+		friend half lgamma(half);
+		friend half tgamma(half);
+		friend half ceil(half);
+		friend half floor(half);
+		friend half trunc(half);
+		friend half round(half);
+		friend long lround(half);
+		friend half rint(half);
+		friend long lrint(half);
 	#ifdef HALF_ENABLE_CPP11_LONG_LONG
-		friend long long llround(half arg);
-		friend long long llrint(half arg);
+		friend long long llround(half);
+		friend long long llrint(half);
 	#endif
-		friend half frexp(half arg, int *exp);
-		friend half scalbln(half arg, long exp);
-		friend half modf(half arg, half *iptr);
-		friend int ilogb(half arg);
-		friend half logb(half arg);
-		friend half nextafter(half from, half to);
-		friend half nexttoward(half from, long double to);
-		friend half copysign(half x, half y);
-		friend int fpclassify(half arg);
-		friend bool isfinite(half arg);
-		friend bool isinf(half arg);
-		friend bool isnan(half arg);
-		friend bool isnormal(half arg);
-		friend bool signbit(half arg);
+		friend half frexp(half, int*);
+		friend half scalbln(half, long);
+		friend half modf(half, half*);
+		friend int ilogb(half);
+		friend half logb(half);
+		friend half nextafter(half, half);
+		friend half nexttoward(half, long double);
+		friend half copysign(half, half);
+		friend int fpclassify(half);
+		friend bool isfinite(half);
+		friend bool isinf(half);
+		friend bool isnan(half);
+		friend bool isnormal(half);
+		friend bool signbit(half);
 		template<typename,typename,std::float_round_style> friend struct detail::half_caster;
 		friend class std::numeric_limits<half>;
 	#if HALF_ENABLE_CPP11_HASH
@@ -2097,7 +2101,7 @@ namespace half_float
 		return half((arg.data_&0x8000) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
 			static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
 	#endif
-		int abs = arg.data_ & 0x7FFF;
+//		int abs = arg.data_ & 0x7FFF;
 		if(!abs || abs >= 0x7C00)
 			return arg;
 	}
@@ -2225,23 +2229,76 @@ namespace half_float
 	/// Arc sine.
 	/// \param arg function argument
 	/// \return arc sine value of \a arg
-	inline half asin(half arg) { return half(std::asin(static_cast<float>(arg))); }
+	inline half asin(half arg)
+	{
+		return half(std::asin(static_cast<float>(arg)));
+		return atan2(hypot(arg, half(detail::binary, 0x3C00)), arg);
+	}
 
 	/// Arc cosine function.
 	/// \param arg function argument
 	/// \return arc cosine value of \a arg
-	inline half acos(half arg) { return half(std::acos(static_cast<float>(arg))); }
+	inline half acos(half arg)
+	{
+		return half(std::acos(static_cast<float>(arg)));
+		return atan2(arg, hypot(arg, half(detail::binary, 0x3C00)));
+	}
 
 	/// Arc tangent function.
 	/// \param arg function argument
 	/// \return arc tangent value of \a arg
-	inline half atan(half arg) { return half(std::atan(static_cast<float>(arg))); }
+	inline half atan(half arg)
+	{
+		return half(std::atan(static_cast<float>(arg)));
+		int abs = arg.data_ & 0x7FFF;
+		if(!abs || abs > 0x7C00)
+			return arg;
+		if(arg.data_ == 0x7C00)
+			return half(detail::binary, 0x3E48+(half::round_style==std::round_toward_infinity));
+		if(arg.data_ == 0xFC00)
+			return half(detail::binary, 0xBE48+(half::round_style==std::round_toward_neg_infinity));
+		return atan2(half(detail::binary, 0x3C00), arg);
+	}
 
 	/// Arc tangent function.
 	/// \param x first argument
 	/// \param y second argument
 	/// \return arc tangent value
-	inline half atan2(half x, half y) { return half(std::atan2(static_cast<float>(x), static_cast<float>(y))); }
+	inline half atan2(half x, half y)
+	{
+		return half(std::atan2(static_cast<float>(x), static_cast<float>(y)));
+		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+		if(absx > 0x7C00)
+			return x;
+		if(absy > 0x7C00)
+			return y;
+		if(!absy)
+		{
+			if(x.data_ & 0x8000)
+				return half(detail::binary, y.data_ ? (0xC248+(half::round_style==std::round_toward_neg_infinity)) : 
+					(0x4248+(half::round_style==std::round_toward_infinity)));
+			return y;
+		}
+		if(absy == 0x7C00)
+		{
+			if(x.data_ == 0x7C00)
+				return half(detail::binary, y.data_ ? (0xBA48+(half::round_style==std::round_toward_neg_infinity)) : 
+					(0x3A48+(half::round_style==std::round_toward_infinity)));
+			if(x.data_ == 0xFC00)
+				return half(detail::binary, y.data_ ? (0xC0B6+(half::round_style==std::round_toward_neg_infinity)) : 
+					(0x40B6+(half::round_style==std::round_toward_infinity)));
+			return half(detail::binary, y.data_ ? (0xBE48+(half::round_style==std::round_toward_neg_infinity)) : 
+				(0x3E48+(half::round_style==std::round_toward_infinity)));
+		}
+		if(!absx)
+			return half(detail::binary, y.data_ ? (0xBE48+(half::round_style==std::round_toward_neg_infinity)) : 
+				(0x3E48+(half::round_style==std::round_toward_infinity)));
+		if(x.data_ == 0x7C00)
+			return half(detail::binary, y.data_&0x8000);
+		if(x.data_ == 0xFC00)
+			return half(detail::binary, y.data_ ? (0xC248+(half::round_style==std::round_toward_neg_infinity)) : 
+				(0x4248+(half::round_style==std::round_toward_infinity)));
+	}
 
 	/// \}
 	/// \name Hyperbolic functions

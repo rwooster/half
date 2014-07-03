@@ -271,8 +271,8 @@ public:
 		UNARY_MATH_TEST(exp2);
 		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
-*/		UNARY_MATH_TEST(log2);
-/*
+		UNARY_MATH_TEST(log2);
+
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
 		BINARY_MATH_TEST(hypot);
@@ -626,7 +626,7 @@ int main(int argc, char *argv[])
 	half pi = half_cast<half,std::round_to_nearest>(3.1415926535897932384626433832795L);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;
-	half e = half_cast<half,std::round_to_nearest>(std::exp(1.0L)) * logb(pi);
+	half e = half_cast<half,std::round_toward_zero>(3.1415926535897932384626433832795L);
 	std::cout << "e:  " << e << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(e) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(e))).to_string() << std::endl;
 
