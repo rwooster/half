@@ -1474,22 +1474,21 @@ namespace half_float
 		}
 		else if(exp > -11)
 		{
-			int s = m & i;
+			int g, s = m & i;
 			m >>= i;
-			s |= (m&0x1FF) != 0;
-			int g = (m>>9) & 1;
 			if(exp > 0)
-				value |= (exp<<10) | ((m>>10)&0x3FF);
-			else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
 			{
-				for(m>>=10; exp; ++exp,m>>=1)
-					s |= m & 1;
-				s |= g;
-				g = m & 1;
-				value |= m >> 1;
+				s |= (m&0x1FF) != 0;
+				g = (m>>9) & 1;
+				value |= (exp<<10) | ((m>>10)&0x3FF);
 			}
 			else
-				value |= m >> (11-exp);
+			{
+				int i = 10 - exp;
+				s |= (m&((1L<<i)-1)) != 0;
+				g = (m>>i) & 1;
+				value |= m >> (i+1);
+			}
 			if(half::round_style == std::round_to_nearest)
 				#if HALF_ROUND_TIES_TO_EVEN
 					value += g & (s|value);
@@ -1545,16 +1544,13 @@ namespace half_float
 			int m = mx / my, g = m & 1, s = mx%my != 0;
 			if(exp > 0)
 				value |= (exp<<10) | ((m>>1)&0x3FF);
-			else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
-			{
-				for(m>>=1; exp; ++exp,m>>=1)
-					s |= m & 1;
-				s |= g;
-				g = m & 1;
-				value |= m >> 1;
-			}
 			else
-				value |= m >> (2-exp);
+			{
+				int i = 1 - exp;
+				s |= g | ((m&((1<<i)-1))!=0);
+				g = (m>>i) & 1;
+				value |= m >> (i+1);
+			}
 			if(half::round_style == std::round_to_nearest)
 				#if HALF_ROUND_TIES_TO_EVEN
 					value += g & (s|value);
@@ -1688,7 +1684,7 @@ namespace half_float
 		for(; absx<0x400; absx<<=1,--exp) ;
 		for(; absy<0x400; absy<<=1,--exp) ;
 		long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
-		int i = m >> 21, s = 0;
+		int i = m >> 21, g, s = 0;
 		exp += (absx>>10) + (absy>>10) + i;
 		m <<= 2 - i;
 		if(absz)
@@ -1746,21 +1742,19 @@ namespace half_float
 		}
 		else if(exp > -11)
 		{
-			int g = (m>>12) & 1;
-			s |= (m&0xFFF) != 0;
 			if(exp > 0)
-				value |= (exp<<10) | ((m>>13)&0x3FF);
-			else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
 			{
-				m >>= 13;
-				s |= g;
-				for(; exp; ++exp,m>>=1)
-					s |= m & 1;
-				g = m & 1;
-				value |= m >> 1;
+				s |= (m&0xFFF) != 0;
+				g = (m>>12) & 1;
+				value |= (exp<<10) | ((m>>13)&0x3FF);
 			}
 			else
-				value |= m >> (14-exp);
+			{
+				int i = 13 - exp;
+				s |= (m&((1L<<i)-1)) != 0;
+				g = (m>>i) & 1;
+				value |= m >> (i+1);
+			}
 			if(half::round_style == std::round_to_nearest)
 				#if HALF_ROUND_TIES_TO_EVEN
 					value += g & (s|value);
@@ -1853,12 +1847,22 @@ namespace half_float
 	inline half exp2(half arg)
 	{
 		static const unsigned int N = 32;
-		static const unsigned long logs_nearest[32] = {
+		static const unsigned long logs[32] = {
 			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B,
 			0x00B84E23, 0x005C3E10, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153,
 			0x0000B8AA, 0x00005C55, 0x00002E2B, 0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171,
 			0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000C, 0x00000006, 0x00000003, 0x00000001 };
-		static const unsigned long logs_up[32] = {
+/*		static const unsigned long logs[32] = {
+			0x8000000, 0x4AE00D2, 0x2934F09, 0x15C01A4, 0x0B31FB8, 0x05AEB4E, 0x02DCF2D, 0x016FE51,
+			0x00B84E2, 0x005C3E1, 0x002E24D, 0x001713D, 0x000B8A4, 0x0005C54, 0x0002E2A, 0x0001715,
+			0x0000B8B, 0x00005C5, 0x00002E3, 0x0000171, 0x00000B9, 0x000005C, 0x000002E, 0x0000017,
+			0x000000C, 0x0000006, 0x0000003, 0x0000001, 0x0000001, 0x0000000, 0x0000000, 0x0000000 };
+/*		static const unsigned long logs[32] = {
+			0x800000, 0x4AE00D, 0x2934F1, 0x15C01A, 0x0B31FB, 0x05AEB5, 0x02DCF3, 0x016FE5,
+			0x00B84E, 0x005C3E, 0x002E25, 0x001714, 0x000B8A, 0x0005C5, 0x0002E3, 0x000171,
+			0x0000B9, 0x00005C, 0x00002E, 0x000017, 0x00000C, 0x000006, 0x000003, 0x000001,
+			0x000001, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000 };
+/*		static const unsigned long logs_up[32] = {
 			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7E, 0x05AEB4DE, 0x02DCF2D1, 0x016FE50C,
 			0x00B84E24, 0x005C3E10, 0x002E24CB, 0x001713D7, 0x000B8A48, 0x0005C53B, 0x0002E2A4, 0x00017154,
 			0x0000B8AA, 0x00005C56, 0x00002E2B, 0x00001716, 0x00000B8B, 0x000005C6, 0x000002E3, 0x00000172,
@@ -1868,7 +1872,7 @@ namespace half_float
 			0x00B84E23, 0x005C3E0F, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53A, 0x0002E2A3, 0x00017153,
 			0x0000B8A9, 0x00005C55, 0x00002E2A, 0x00001715, 0x00000B8A, 0x000005C5, 0x000002E2, 0x00000171,
 			0x000000B8, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000B, 0x00000005, 0x00000002, 0x00000001 };
-/*	#if HALF_ENABLE_CPP11_CMATH
+	#if HALF_ENABLE_CPP11_CMATH
 		return half(std::exp2(static_cast<float>(arg)));
 	#else
 		return half(static_cast<float>(std::exp(arg*0.69314718055994530941723212145818)));
@@ -1881,7 +1885,6 @@ namespace half_float
 		if(!abs)
 			return half(detail::binary, 0x3C00);
 		bool sign = arg.data_ & 0x8000;
-		const unsigned long *logs = sign ? logs_down : logs_down;
 
 		unsigned long m, mx = 1UL << (N-1), my = 0;
 		int e = (abs>>10) + (abs<=0x3FF) - 15, exp = (abs&0x3FF) + ((abs>0x3FF)<<10), g, s = 0;
@@ -1921,13 +1924,13 @@ namespace half_float
 			s |= my % mx;
 			mx = my / mx;
 			g = (mx>>(N-28)) & 1;
-			s |= mx & ((1UL<<(N-28))-1) != 0;
+			s |= (mx&((1UL<<(N-28))-1)) != 0;
 			if(exp < 15)
 				value = ((15-exp)<<10) | ((mx>>(N-27))&0x3FF);
 			else if(exp <= 25)
 			{
 				g = (mx>>(N-42+exp)) & 1;
-				s |= mx & ((1UL<<(N-42+exp))-1) != 0;
+				s |= (mx&((1UL<<(N-42+exp))-1)) != 0;
 				value = mx >> (N-41+exp);
 			}
 			else
@@ -1938,7 +1941,7 @@ namespace half_float
 			if(exp > 15)
 				return half(detail::binary, 0x7BFF+(half::round_style!=std::round_toward_zero && half::round_style!=std::round_toward_neg_infinity));
 			g = (mx>>(N-12)) & 1;
-			s |= mx & ((1UL<<(N-12))-1) != 0;
+			s |= (mx&((1UL<<(N-12))-1)) != 0;
 			value = ((exp+15)<<10) | ((mx>>(N-11))&0x3FF);
 		}
 
@@ -1953,17 +1956,17 @@ namespace half_float
 		return half(detail::binary, value);
 	}
 
-	/// Natural logorithm.
+	/// Natural logarithm.
 	/// \param arg function argument
 	/// \return logarithm of \a arg to base e
 	inline half log(half arg) { return half(std::log(static_cast<float>(arg))); }
 
-	/// Common logorithm.
+	/// Common logarithm.
 	/// \param arg function argument
 	/// \return logarithm of \a arg to base 10
 	inline half log10(half arg) { return half(std::log10(static_cast<float>(arg))); }
 
-	/// Natural logorithm.
+	/// Natural logarithm.
 	/// \param arg function argument
 	/// \return logarithm of \a arg plus 1 to base e
 	inline half log1p(half arg)
@@ -1975,33 +1978,16 @@ namespace half_float
 	#endif
 	}
 
-	/// Binary logorithm.
+	/// Binary logarithm.
 	/// \param arg function argument
 	/// \return logarithm of \a arg to base 2
 	inline half log2(half arg)
 	{
-		static const unsigned int N = 32;
-		static const unsigned long logs_nearest[32] = {
-			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B,
-			0x00B84E23, 0x005C3E10, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153,
-			0x0000B8AA, 0x00005C55, 0x00002E2B, 0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171,
-			0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000C, 0x00000006, 0x00000003, 0x00000001 };
-		static const unsigned long logs_up[32] = {
-			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7E, 0x05AEB4DE, 0x02DCF2D1, 0x016FE50C,
-			0x00B84E24, 0x005C3E10, 0x002E24CB, 0x001713D7, 0x000B8A48, 0x0005C53B, 0x0002E2A4, 0x00017154,
-			0x0000B8AA, 0x00005C56, 0x00002E2B, 0x00001716, 0x00000B8B, 0x000005C6, 0x000002E3, 0x00000172,
-			0x000000B9, 0x0000005D, 0x0000002F, 0x00000018, 0x0000000C, 0x00000006, 0x00000003, 0x00000002 };
-		static const unsigned long logs_down[32] = {
-			0x80000000, 0x4AE00D1C, 0x2934F097, 0x15C01A39, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D0, 0x016FE50B,
-			0x00B84E23, 0x005C3E0F, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53A, 0x0002E2A3, 0x00017153,
-			0x0000B8A9, 0x00005C55, 0x00002E2A, 0x00001715, 0x00000B8A, 0x000005C5, 0x000002E2, 0x00000171,
-			0x000000B8, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000B, 0x00000005, 0x00000002, 0x00000001 };
-/*	#if HALF_ENABLE_CPP11_CMATH
-		return half(std::log2(arg));
-	#else
-		return half(static_cast<float>(std::log(static_cast<double>(arg))*1.4426950408889634073599246810019));
-	#endif
-*/		int abs = arg.data_ & 0x7FFF, ilog = -15;
+		static const unsigned long logs[27] = {
+			0x4AE00D2, 0x2934F09, 0x15C01A4, 0x0B31FB8, 0x05AEB4E, 0x02DCF2D, 0x016FE51, 0x00B84E2, 0x005C3E1, 
+			0x002E24D, 0x001713D, 0x000B8A4, 0x0005C54, 0x0002E2A, 0x0001715, 0x0000B8B, 0x00005C5, 0x00002E3, 
+			0x0000171, 0x00000B9, 0x000005C, 0x000002E, 0x0000017, 0x000000C, 0x0000006, 0x0000003, 0x0000001 };
+		int abs = arg.data_ & 0x7FFF, ilog = -15;
 		if(!abs)
 			return half(detail::binary, 0xFC00);
 		if(arg.data_ & 0x8000)
@@ -2011,33 +1997,28 @@ namespace half_float
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
 		bool sign = ilog < 0;
-		const unsigned long *logs = logs_down;
-
-		unsigned long m = ((abs&0x3FF)|0x400UL) << (N-12), mx = 1UL << (N-2), my = 0;
+		unsigned long m = ((abs&0x3FF)|0x400UL) << 20, mx = 1UL << 30, my = 0;
 		if(m != mx)
 		{
-			for(unsigned int i=1; i<N-1; ++i)
+			for(unsigned int i=1; i<28; ++i)
 			{
 				unsigned long mz = mx + (mx>>i);
 				if(mz <= m)
 				{
 					mx = mz;
-					my += logs[i];
+					my += logs[i-1];
 				}
 			}
-			my = (my|(((my&0xF)!=0||mx!=m)<<4)) >> 4;
 			my |= 1;
 		}
-
-		m = sign ? ((static_cast<unsigned long>(-ilog)<<(N-5))-my) : ((static_cast<unsigned long>(ilog)<<(N-5))+my);
-
+		m = sign ? ((static_cast<unsigned long>(-ilog)<<27)-my) : ((static_cast<unsigned long>(ilog)<<27)+my);
 		int exp = 14, s = 0;
 		for(; m<0x8000000 && exp; m<<=1,--exp) ;
 		for(; m>0xFFFFFFF; m>>=1,++exp)
 			s |= m & 1;
-		int g = (m>>(N-16)) & 1;
-		s = m & ((1UL<<(N-16))-1) != 0;
-		detail::uint16 value = (static_cast<unsigned>(sign)<<15) | (exp<<10) + (m>>(N-15));
+		s |= (m&0xFFFF) != 0;
+		int g = (m>>16) & 1;
+		detail::uint16 value = (static_cast<unsigned>(sign)<<15) | (exp<<10) + (m>>17);
 		if(half::round_style == std::round_to_nearest)
 			#if HALF_ROUND_TIES_TO_EVEN
 				value += g & (s|value);
@@ -2101,9 +2082,9 @@ namespace half_float
 		return half((arg.data_&0x8000) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
 			static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
 	#endif
-//		int abs = arg.data_ & 0x7FFF;
+/*		int abs = arg.data_ & 0x7FFF;
 		if(!abs || abs >= 0x7C00)
-			return arg;
+			return arg;*/
 	}
 
 	/// Hypotenuse function.
@@ -2179,17 +2160,13 @@ namespace half_float
 		detail::uint16 value;
 		if(exp > 0)
 			value = (exp<<10) | ((m>>1)&0x3FF);
-		else if(half::round_style == std::round_to_nearest || half::round_style == std::round_toward_infinity)
-		{
-			m >>= 1;
-			s |= g;
-			for(; exp; ++exp,m>>=1)
-				s |= m & 1;
-			g = m & 1;
-			value = m >> 1;
-		}
 		else
-			value = m >> (2-exp);
+		{
+			int i = 1 - exp;
+			s |= g | ((m&((1<<i)-1))!=0);
+			g = (m>>i) & 1;
+			value |= m >> (i+1);
+		}
 		if(half::round_style == std::round_to_nearest)
 			#if HALF_ROUND_TIES_TO_EVEN
 				value += g & (s|value);
