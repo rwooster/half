@@ -13,7 +13,7 @@
 // WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR 
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
+#include <cassert>
 // Version 1.11.0
 
 /// \file
@@ -986,6 +986,10 @@ namespace half_float
 		friend half sqrt(half);
 		friend half cbrt(half);
 		friend half hypot(half, half);
+		friend std::pair<half,half> sincos(half);
+		friend half sin(half);
+		friend half cos(half);
+		friend half tan(half);
 		friend half asin(half);
 		friend half acos(half);
 		friend half atan(half);
@@ -1867,12 +1871,12 @@ namespace half_float
 			0x00B84E24, 0x005C3E10, 0x002E24CB, 0x001713D7, 0x000B8A48, 0x0005C53B, 0x0002E2A4, 0x00017154,
 			0x0000B8AA, 0x00005C56, 0x00002E2B, 0x00001716, 0x00000B8B, 0x000005C6, 0x000002E3, 0x00000172,
 			0x000000B9, 0x0000005D, 0x0000002F, 0x00000018, 0x0000000C, 0x00000006, 0x00000003, 0x00000002 };
-		static const unsigned long logs_down[32] = {
+		static const unsigned long logs[32] = {
 			0x80000000, 0x4AE00D1C, 0x2934F097, 0x15C01A39, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D0, 0x016FE50B,
 			0x00B84E23, 0x005C3E0F, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53A, 0x0002E2A3, 0x00017153,
 			0x0000B8A9, 0x00005C55, 0x00002E2A, 0x00001715, 0x00000B8A, 0x000005C5, 0x000002E2, 0x00000171,
 			0x000000B8, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000B, 0x00000005, 0x00000002, 0x00000001 };
-	#if HALF_ENABLE_CPP11_CMATH
+/*	#if HALF_ENABLE_CPP11_CMATH
 		return half(std::exp2(static_cast<float>(arg)));
 	#else
 		return half(static_cast<float>(std::exp(arg*0.69314718055994530941723212145818)));
@@ -1910,7 +1914,7 @@ namespace half_float
 					mx += mx >> i;
 				}
 			}
-			s = 1;//my != m;
+//			s = 1;//my != m;
 		}
 
 		detail::uint16 value;
@@ -1921,7 +1925,7 @@ namespace half_float
 			my >>= i;
 			exp += 1 - i;
 			mx >>= 16;
-			s |= my % mx;
+			s = my % mx;
 			mx = my / mx;
 			g = (mx>>(N-28)) & 1;
 			s |= (mx&((1UL<<(N-28))-1)) != 0;
@@ -2073,7 +2077,7 @@ namespace half_float
 	/// \return cubic root of \a arg
 	inline half cbrt(half arg)
 	{
-	#if HALF_ENABLE_CPP11_CMATH
+/*	#if HALF_ENABLE_CPP11_CMATH
 		return half(std::cbrt(static_cast<float>(arg)));
 	#else
 		int abs = arg.data_ & 0x7FFF;
@@ -2082,9 +2086,36 @@ namespace half_float
 		return half((arg.data_&0x8000) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
 			static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
 	#endif
-/*		int abs = arg.data_ & 0x7FFF;
+*/		int abs = arg.data_ & 0x7FFF, exp = -15;
 		if(!abs || abs >= 0x7C00)
-			return arg;*/
+			return arg;
+		detail::uint16 sign = arg.data_ & 0x8000;
+
+		for(; abs<0x400; abs<<=1,--exp) ;
+		exp += abs >> 10;
+		int exp3 = exp / 3;
+/*
+		for(exp-=3*exp3; exp<0; exp+=3,--exp3) ;
+		arg.data_ = sign | ((exp+15)<<10) | (abs&0x3FF);
+		arg = std::cbrt(static_cast<float>(arg));
+		arg.data_ = (arg.data_-0x3C00) + ((exp3+15)<<10);
+*/
+		for(exp-=3*exp3; exp<0; exp+=3,--exp3) ;
+		float x = static_cast<float>(arg);
+		arg.data_ = ((exp3+15)<<10) | (abs&0x3FF);
+		float t = static_cast<float>(arg);
+		static const double C =  5.42857142857142815906e-01, D = -7.05306122448979611050e-01, E =  1.41428571428571436819e+00, F =  1.60714285714285720630e+00, G =  3.57142857142857150787e-01;
+		double r = t * t / x, s = C + r*t;
+		t *= G + F/(s+E+D/s);
+		s = t * t;
+		r = x / s;
+		double w = t + t;
+		r = (r-t) / (w+r);
+		t += t * r;
+		arg = t;
+		arg.data_ |= sign;
+
+		return arg;
 	}
 
 	/// Hypotenuse function.
@@ -2188,20 +2219,99 @@ namespace half_float
 	/// \name Trigonometric functions
 	/// \{
 
+	/// Sine cosine function.
+	/// \param arg function argument
+	/// \return sine and cosine of \a arg
+	inline std::pair<half,half> sincos(half arg)
+	{
+//		return std::make_pair(half(std::sin(static_cast<float>(arg))), half(std::cos(static_cast<float>(arg))));
+		static const unsigned int N = 32;
+		static const unsigned long angles[32] = {
+			0xC90FDAA2, 0x76B19C16, 0x3EB6EBF2, 0x1FD5BA9B, 0x0FFAADDC, 0x07FF556F, 0x03FFEAAB, 0x01FFFD55,
+			0x00FFFFAB, 0x007FFFF5, 0x003FFFFF, 0x001FFFFF, 0x00100000, 0x00080000, 0x00040000, 0x00020000,
+			0x00010000, 0x00008000, 0x00004000, 0x00002000, 0x00001000, 0x00000800, 0x00000400, 0x00000200,
+			0x00000100, 0x00000080, 0x00000040, 0x00000020, 0x00000010, 0x00000008, 0x00000004, 0x00000002 };
+		int abs = arg.data_ & 0x7FFF;
+		if(abs >= 0x7C00)
+			return std::make_pair(half(detail::binary, 0x7FFF), half(detail::binary, 0x7FFF));
+		if(!abs)
+			return std::make_pair(arg, half(detail::binary, 0x3C00));
+		if(abs > 0x3E48)
+			return std::make_pair(half(std::sin(static_cast<float>(arg))), half(std::cos(static_cast<float>(arg))));
+
+		int exp = (abs>>10) + (abs<=0x3FF);
+		unsigned long sign = -static_cast<unsigned long>(arg.data_>>15);
+		unsigned long mx = 0x26DD3B6A, my = 0, mz = ((((abs&0x3FF)|((abs>0x3FF)<<10))<<(N-27+exp))^sign) - sign;
+		for(unsigned int i=0; i<N; ++i)
+		{
+			unsigned long sign = -((mz>>(N-1))&1), tx = mx - (((my>>i)^sign)-sign);
+			my += ((mx>>i)^sign) - sign;
+			mx = tx;
+			mz -= (((angles[i]+0x2)>>(N-2))^sign) - sign;
+		}
+
+		unsigned long signx = -((mx>>(N-1))&1), signy = -((my>>(N-1))&1);
+		mx = (mx^signx) - signx;
+		my = (my^signy) - signy;
+
+		int expx = 15, expy = 15;
+		for(; mx<0x40000000 && expx>1; mx<<=1, --expx);
+		for(; my<0x40000000 && expy>1; my<<=1, --expy);
+		int s = (mx&((1L<<(N-13))-1)) != 0, g = (mx>>(N-13)) & 1;
+		detail::uint16 valuex = (signx&0x8000) | ((expx-1)<<10) + (mx>>(N-12));
+		if(half::round_style == std::round_to_nearest)
+			#if HALF_ROUND_TIES_TO_EVEN
+				valuex += g & (s|valuex);
+			#else
+				valuex += g;
+			#endif
+		else if(half::round_style == std::round_toward_infinity)
+			valuex += ~(valuex>>15) & (g|s);
+		else if(half::round_style == std::round_toward_neg_infinity)
+			valuex += (valuex>>15) & (g|s);
+		s = (my&((1L<<(N-13))-1)) != 0;
+		g = (my>>(N-13)) & 1;
+		detail::uint16 valuey = (signy&0x8000) | ((expy-1)<<10) + (my>>(N-12));
+		if(half::round_style == std::round_to_nearest)
+			#if HALF_ROUND_TIES_TO_EVEN
+				valuey += g & (s|valuey);
+			#else
+				valuey += g;
+			#endif
+		else if(half::round_style == std::round_toward_infinity)
+			valuey += ~(valuey>>15) & (g|s);
+		else if(half::round_style == std::round_toward_neg_infinity)
+			valuey += (valuey>>15) & (g|s);
+		return std::make_pair(half(detail::binary, valuey), half(detail::binary, valuex));
+	}
+
 	/// Sine function.
 	/// \param arg function argument
 	/// \return sine value of \a arg
-	inline half sin(half arg) { return half(std::sin(static_cast<float>(arg))); }
+	inline half sin(half arg)
+	{
+//		return half(std::sin(static_cast<float>(arg)));
+		return sincos(arg).first;
+	}
 
 	/// Cosine function.
 	/// \param arg function argument
 	/// \return cosine value of \a arg
-	inline half cos(half arg) { return half(std::cos(static_cast<float>(arg))); }
+	inline half cos(half arg)
+	{
+//		return half(std::cos(static_cast<float>(arg)));
+		return sincos(arg).second;
+	}
 
 	/// Tangent function.
 	/// \param arg function argument
 	/// \return tangent value of \a arg
-	inline half tan(half arg) { return half(std::tan(static_cast<float>(arg))); }
+	inline half tan(half arg)
+	{
+//		return half(std::tan(static_cast<float>(arg)));
+		std::pair<half,half> sc = sincos(arg);
+		return sc.first / sc.second;
+	}
 
 	/// Arc sine.
 	/// \param arg function argument

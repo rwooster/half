@@ -266,10 +266,20 @@ public:
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
-
+*/
+		double err = 0.0, rel = 0.0;
+		bool success = unary_test("exp2", [&](half arg) -> bool {
+			half a = exp2(arg), b(std::exp2(static_cast<float>(arg))); bool equal = comp(a, b) || isinf(a) || isinf(b);
+			if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
+			if(!signbit(arg))
+				exp2(arg);
+			std::cerr << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
+			err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); } return equal; });
+		if(err != 0.0 || rel != 0.0) std::cout << "exp2" << " max error: " << err << " - max relative error: " << rel << '\n';
+/*
 		//test exponential functions
-*/		UNARY_MATH_TEST(exp2);
-/*		UNARY_MATH_TEST(expm1);
+		UNARY_MATH_TEST(exp2);
+		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
 		UNARY_MATH_TEST(log2);
 
