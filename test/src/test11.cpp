@@ -628,7 +628,7 @@ int main(int argc, char *argv[])
 		timer time;
 		for(unsigned int i=0; i<1000; ++i)
 			for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); ++a)
-				sum += h2b(log2(b2h(a)));
+				sum += h2b(exp2(b2h(a)));
 	}
 	std::cout << sum;
 	return 0;

@@ -13,7 +13,7 @@
 // WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR 
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#include <cassert>
+
 // Version 1.11.0
 
 /// \file
@@ -1850,38 +1850,11 @@ namespace half_float
 	/// \return 2 raised to \a arg
 	inline half exp2(half arg)
 	{
-		static const unsigned int N = 32;
-		static const unsigned long logs[32] = {
-			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B,
-			0x00B84E23, 0x005C3E10, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153,
-			0x0000B8AA, 0x00005C55, 0x00002E2B, 0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171,
-			0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000C, 0x00000006, 0x00000003, 0x00000001 };
-/*		static const unsigned long logs[32] = {
-			0x8000000, 0x4AE00D2, 0x2934F09, 0x15C01A4, 0x0B31FB8, 0x05AEB4E, 0x02DCF2D, 0x016FE51,
-			0x00B84E2, 0x005C3E1, 0x002E24D, 0x001713D, 0x000B8A4, 0x0005C54, 0x0002E2A, 0x0001715,
-			0x0000B8B, 0x00005C5, 0x00002E3, 0x0000171, 0x00000B9, 0x000005C, 0x000002E, 0x0000017,
-			0x000000C, 0x0000006, 0x0000003, 0x0000001, 0x0000001, 0x0000000, 0x0000000, 0x0000000 };
-/*		static const unsigned long logs[32] = {
-			0x800000, 0x4AE00D, 0x2934F1, 0x15C01A, 0x0B31FB, 0x05AEB5, 0x02DCF3, 0x016FE5,
-			0x00B84E, 0x005C3E, 0x002E25, 0x001714, 0x000B8A, 0x0005C5, 0x0002E3, 0x000171,
-			0x0000B9, 0x00005C, 0x00002E, 0x000017, 0x00000C, 0x000006, 0x000003, 0x000001,
-			0x000001, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000 };
-/*		static const unsigned long logs_up[32] = {
-			0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7E, 0x05AEB4DE, 0x02DCF2D1, 0x016FE50C,
-			0x00B84E24, 0x005C3E10, 0x002E24CB, 0x001713D7, 0x000B8A48, 0x0005C53B, 0x0002E2A4, 0x00017154,
-			0x0000B8AA, 0x00005C56, 0x00002E2B, 0x00001716, 0x00000B8B, 0x000005C6, 0x000002E3, 0x00000172,
-			0x000000B9, 0x0000005D, 0x0000002F, 0x00000018, 0x0000000C, 0x00000006, 0x00000003, 0x00000002 };
-		static const unsigned long logs[32] = {
-			0x80000000, 0x4AE00D1C, 0x2934F097, 0x15C01A39, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D0, 0x016FE50B,
-			0x00B84E23, 0x005C3E0F, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53A, 0x0002E2A3, 0x00017153,
-			0x0000B8A9, 0x00005C55, 0x00002E2A, 0x00001715, 0x00000B8A, 0x000005C5, 0x000002E2, 0x00000171,
-			0x000000B8, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000B, 0x00000005, 0x00000002, 0x00000001 };
-/*	#if HALF_ENABLE_CPP11_CMATH
-		return half(std::exp2(static_cast<float>(arg)));
-	#else
-		return half(static_cast<float>(std::exp(arg*0.69314718055994530941723212145818)));
-	#endif
-*/		unsigned int abs = arg.data_ & 0x7FFF;
+		static const unsigned long logs[27] = {
+			0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B, 0x00B84E23, 0x005C3E10, 
+			0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153, 0x0000B8AA, 0x00005C55, 0x00002E2B, 
+			0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171, 0x000000B9, 0x0000005C, 0x0000002E, 0x00000017 };
+		unsigned int abs = arg.data_ & 0x7FFF;
 		if(abs > 0x7C00)
 			return arg;
 		if(abs == 0x7C00)
@@ -1889,12 +1862,11 @@ namespace half_float
 		if(!abs)
 			return half(detail::binary, 0x3C00);
 		bool sign = arg.data_ & 0x8000;
-
-		unsigned long m, mx = 1UL << (N-1), my = 0;
+		unsigned long m, mx = 0x80000000, my = 0;
 		int e = (abs>>10) + (abs<=0x3FF) - 15, exp = (abs&0x3FF) + ((abs>0x3FF)<<10), g, s = 0;
 		if(e < 10)
 		{
-			m = (static_cast<unsigned long>(exp)<<(N-11+e)) & ((1<<(N-1))-1);
+			m = (static_cast<unsigned long>(exp)<<(21+e)) & 0x7FFFFFFF;
 			exp >>= 10 - e;
 		}
 		else
@@ -1902,53 +1874,73 @@ namespace half_float
 			m = 0;
 			exp <<= e - 10;
 		}
-
 		if(m)
 		{
-			for(unsigned int i=1; i<N; ++i)
+			for(unsigned int i=0; i<27; ++i)
 			{
 				unsigned long mz = my + logs[i];
 				if(mz <= m)
 				{
 					my = mz;
-					mx += mx >> i;
+					mx += mx >> (i+1);
 				}
 			}
-//			s = 1;//my != m;
 		}
-
 		detail::uint16 value;
 		if(sign)
 		{
-			my = 1UL << (N-1);
-			int i = mx == my;
-			my >>= i;
-			exp += 1 - i;
-			mx >>= 16;
-			s = my % mx;
-			mx = my / mx;
-			g = (mx>>(N-28)) & 1;
-			s |= (mx&((1UL<<(N-28))-1)) != 0;
-			if(exp < 15)
-				value = ((15-exp)<<10) | ((mx>>(N-27))&0x3FF);
-			else if(exp <= 25)
+			if(mx > 0x80000000)
 			{
-				g = (mx>>(N-42+exp)) & 1;
-				s |= (mx&((1UL<<(N-42+exp))-1)) != 0;
-				value = mx >> (N-41+exp);
+				++exp;
+			#if HALF_ENABLE_CPP11_LONG_LONG
+				unsigned long long one = 0x8000000000000000U;
+				s = one % mx != 0;
+				mx = one / mx;
+			#else
+				mx >>= 1;
+				unsigned long rem = 0x80000000, div = 0;
+				for(unsigned int i=0; i<32; ++i)
+				{
+					div <<= 1;
+					if(rem >= mx)
+					{
+						rem -= mx;
+						div |= 1;
+					}
+					rem <<= 1;
+				}
+				s = rem > 1;
+				mx = div;
+			#endif
+			}
+			if(exp < 15)
+			{
+				g = (mx>>20) & 1;
+				s |= (mx&0xFFFFF) != 0;
+				value = ((15-exp)<<10) | ((mx>>21)&0x3FF);
+			}
+			else if(exp < 25)
+			{
+				int i = 6 + exp;
+				g = (mx>>i) & 1;
+				s |= (mx&((1UL<<i)-1)) != 0;
+				value = mx >> (i+1);
 			}
 			else
+			{
+				g = exp == 25;
+				s |= (1-g) | ((m&0x7FFFFFFF)!=0);
 				value = 0;
+			}
 		}
 		else
 		{
 			if(exp > 15)
 				return half(detail::binary, 0x7BFF+(half::round_style!=std::round_toward_zero && half::round_style!=std::round_toward_neg_infinity));
-			g = (mx>>(N-12)) & 1;
-			s |= (mx&((1UL<<(N-12))-1)) != 0;
-			value = ((exp+15)<<10) | ((mx>>(N-11))&0x3FF);
+			g = (mx>>20) & 1;
+			s |= (mx&0xFFFFF) != 0;
+			value = ((exp+15)<<10) | ((mx>>21)&0x3FF);
 		}
-
 		if(half::round_style == std::round_to_nearest)
 			#if HALF_ROUND_TIES_TO_EVEN
 				value += g & (s|value);
