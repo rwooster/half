@@ -59,7 +59,7 @@
 	bool success = binary_test(#func, [&](half x, half y) -> bool { \
 		half a = func(x, y), b(std::func(static_cast<float>(x), static_cast<float>(y))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		/*std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
+		std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); } return equal; }); \
 	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
 
@@ -203,8 +203,8 @@ public:
 
 		//test exponential functions
 		UNARY_MATH_TEST(exp);
-		UNARY_MATH_TEST(log);
-		UNARY_MATH_TEST(log10);
+*/		UNARY_MATH_TEST(log);
+/*		UNARY_MATH_TEST(log10);
 
 		//test power functions
 		UNARY_MATH_TEST(sqrt);
@@ -266,17 +266,7 @@ public:
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
-*/
-		double err = 0.0, rel = 0.0;
-		bool success = unary_test("exp2", [&](half arg) -> bool {
-			half a = exp2(arg), b(std::exp2(static_cast<float>(arg))); bool equal = comp(a, b) || isinf(a) || isinf(b);
-			if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
-			if(!signbit(arg))
-				exp2(arg);
-			std::cerr << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
-			err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); } return equal; });
-		if(err != 0.0 || rel != 0.0) std::cout << "exp2" << " max error: " << err << " - max relative error: " << rel << '\n';
-/*
+
 		//test exponential functions
 		UNARY_MATH_TEST(exp2);
 		UNARY_MATH_TEST(expm1);
@@ -636,7 +626,7 @@ int main(int argc, char *argv[])
 	half pi = half_cast<half,std::round_to_nearest>(3.1415926535897932384626433832795L);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;
-	half e = half_cast<half,std::round_toward_zero>(3.1415926535897932384626433832795L);
+	half e = half_cast<half,std::round_to_nearest>(std::log2(2.7182818284590452353602874713527L));
 	std::cout << "e:  " << e << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(e) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(e))).to_string() << std::endl;
 

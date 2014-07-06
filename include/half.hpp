@@ -911,6 +911,105 @@ namespace half_float
 			return x;
 		}
 
+		inline bool is_odd(uint16 value)
+		{
+			if(value >= 0x7C00 || value < 0x3C00)
+				return false;
+			unsigned int m = (value&0x3FF) | 0x400;
+			int e = value >> 10;
+			if(e < 25)
+			{
+				if(m & ((1<<(25-e))-1))
+					return false;
+				m >>= 25 - e;
+			}
+			else
+				m <<= e - 25;
+			return m & 1;
+		}
+
+		inline bool is_integer(uint16 value, int &ival, bool &odd)
+		{
+			unsigned int e = value & 0x7FFF;
+			if(e >= 0x7C00)
+				return odd = false, false;
+			if(e < 0x3C00)
+				return ival = 0, odd = false, !e;
+			unsigned int m = (value&0x3FF) | 0x400;
+			e >>= 10;
+			if(e < 25)
+			{
+				if(m & ((1<<(25-e))-1))
+					return odd = false, false;
+				m >>= 25 - e;
+			}
+			else
+				m <<= e - 25;
+			return ival = (value&0x8000) ? -static_cast<int>(m) : static_cast<int>(m), odd = m & 1, true;
+		}
+
+		inline uint16 fixed2half(unsigned long m)
+		{
+/*			unsigned long sign = -((m>>31)&1);
+			m = (m^sign) - sign;
+			int exp = 15;
+			for(; m<0x40000000 && exp>1; m<<=1, --exp);
+			int s = (m&0x7FFFF) != 0, g = (m>>19) & 1;
+			detail::uint16 valuex = (sign&0x8000) | ((exp-1)<<10) + (m>>20);
+			if(half::round_style == std::round_to_nearest)
+				#if HALF_ROUND_TIES_TO_EVEN
+					valuex += g & (s|valuex);
+				#else
+					valuex += g;
+				#endif
+			else if(half::round_style == std::round_toward_infinity)
+				valuex += ~(valuex>>15) & (g|s);
+			else if(half::round_style == std::round_toward_neg_infinity)
+				valuex += (valuex>>15) & (g|s);
+*/		}
+
+		/// Sine cosine function.
+		/// \param arg function argument
+		/// \return sine and cosine of \a arg
+		template<bool S,bool C> std::pair<uint16,uint16> sincos(uint16 arg)
+		{
+/*			static const unsigned int N = 32;
+			static const unsigned long angles[32] = {
+				0xC90FDAA2, 0x76B19C16, 0x3EB6EBF2, 0x1FD5BA9B, 0x0FFAADDC, 0x07FF556F, 0x03FFEAAB, 0x01FFFD55,
+				0x00FFFFAB, 0x007FFFF5, 0x003FFFFF, 0x001FFFFF, 0x00100000, 0x00080000, 0x00040000, 0x00020000,
+				0x00010000, 0x00008000, 0x00004000, 0x00002000, 0x00001000, 0x00000800, 0x00000400, 0x00000200,
+				0x00000100, 0x00000080, 0x00000040, 0x00000020, 0x00000010, 0x00000008, 0x00000004, 0x00000002 };
+			int abs = arg & 0x7FFF;
+			if(abs > 0x3E48)
+			{
+				float angle = half2float(arg);
+				return std::make_pair(float2half<half::round_style>(std::sin(angle)), float2half<half::round_style>(std::cos(angle)));
+			}
+
+			int exp = (abs>>10) + (abs<=0x3FF);
+			unsigned long sign = -static_cast<unsigned long>(arg>>15);
+			unsigned long mx = 0x26DD3B6A, my = 0, mz = ((((abs&0x3FF)|((abs>0x3FF)<<10))<<(N-27+exp))^sign) - sign;
+			for(unsigned int i=0; i<N; ++i)
+			{
+				unsigned long sign = -((mz>>(N-1))&1), tx = mx - (((my>>i)^sign)-sign);
+				my += ((mx>>i)^sign) - sign;
+				mx = tx;
+				mz -= (((angles[i]+0x2)>>(N-2))^sign) - sign;
+			}
+
+			uint16 valuex, valuey;
+			if(C)
+				valuex = fixed2half(mx);
+			if(S)
+				valuey = fixed2half(my);
+			return std::make_pair(half(detail::binary, valuey), half(detail::binary, valuex));
+*/		}
+
+		inline uint16 atan2(uint16 y, uint16 x)
+		{
+			return 0;
+		}
+
 		/// Error function.
 		/// \param arg function argument
 		/// \return approximated value of error function
@@ -982,10 +1081,13 @@ namespace half_float
 		friend half fmin(half, half);
 		friend half fdim(half, half);
 		friend half exp2(half);
+		friend half log(half);
 		friend half log2(half);
 		friend half sqrt(half);
 		friend half cbrt(half);
 		friend half hypot(half, half);
+		friend half pow(half, half);
+		friend half pow(half, int);
 		friend std::pair<half,half> sincos(half);
 		friend half sin(half);
 		friend half cos(half);
@@ -1021,6 +1123,7 @@ namespace half_float
 		friend bool isnan(half);
 		friend bool isnormal(half);
 		friend bool signbit(half);
+		friend detail::uint16 detail::fixed2half(unsigned long);
 		template<typename,typename,std::float_round_style> friend struct detail::half_caster;
 		friend class std::numeric_limits<half>;
 	#if HALF_ENABLE_CPP11_HASH
@@ -1955,7 +2058,82 @@ namespace half_float
 	/// Natural logarithm.
 	/// \param arg function argument
 	/// \return logarithm of \a arg to base e
-	inline half log(half arg) { return half(std::log(static_cast<float>(arg))); }
+	inline half log(half arg)
+	{
+//		return half(std::log(static_cast<float>(arg)));
+		static const unsigned long loge = 0xB8AA3B29;
+		static const unsigned long logs[27] = {
+			0x4AE00D2, 0x2934F09, 0x15C01A4, 0x0B31FB8, 0x05AEB4E, 0x02DCF2D, 0x016FE51, 0x00B84E2, 0x005C3E1, 
+			0x002E24D, 0x001713D, 0x000B8A4, 0x0005C54, 0x0002E2A, 0x0001715, 0x0000B8B, 0x00005C5, 0x00002E3, 
+			0x0000171, 0x00000B9, 0x000005C, 0x000002E, 0x0000017, 0x000000C, 0x0000006, 0x0000003, 0x0000001 };
+		int abs = arg.data_ & 0x7FFF, ilog = -15;
+		if(!abs)
+			return half(detail::binary, 0xFC00);
+		if(arg.data_ & 0x8000)
+			return half(detail::binary, 0x7FFF);
+		if(abs >= 0x7C00)
+			return arg;
+		for(; abs<0x400; abs<<=1,--ilog) ;
+		ilog += abs >> 10;
+		bool sign = ilog < 0;
+		unsigned long m = ((abs&0x3FF)|0x400UL) << 20, mx = 1UL << 30, my = 0;
+		if(m != mx)
+		{
+			for(unsigned int i=1; i<28; ++i)
+			{
+				unsigned long mz = mx + (mx>>i);
+				if(mz <= m)
+				{
+					mx = mz;
+					my += logs[i-1];
+				}
+			}
+			my |= 1;
+		}
+		m = sign ? ((static_cast<unsigned long>(-ilog)<<27)-my) : ((static_cast<unsigned long>(ilog)<<27)+my);
+		if(!m)
+			return half(detail::binary, 0);
+		int exp = 18;
+		for(; m<0x40000000; m<<=1,--exp) ;
+		int i = m > 0x7FFFFFFF;
+		i -= (m<<(1-i)) < loge;
+		exp += i;
+		detail::uint16 value = static_cast<unsigned>(sign) << 15;
+		if(exp > -11)
+		{
+			unsigned long long mm = static_cast<unsigned long long>(m) << (31-i);
+			int g, s = mm % loge != 0;
+			m = mm / loge;
+			if(exp > 0)
+			{
+				s |= (m&0x7FFFF) != 0;
+				g = (m>>19) & 1;
+				value |= (exp<<10) | ((m>>20)&0x3FF);
+			}
+			else
+			{
+				int i = 20 - exp;
+				s |= (m&((1<<i)-1)) != 0;
+				g = (m>>i) & 1;
+				value |= m >> (i+1);
+			}
+			if(half::round_style == std::round_to_nearest)
+				#if HALF_ROUND_TIES_TO_EVEN
+					value += g & (s|value);
+				#else
+					value += g;
+				#endif
+			else if(half::round_style == std::round_toward_infinity)
+				value += ~(value>>15) & (g|s);
+			else if(half::round_style == std::round_toward_neg_infinity)
+				value += (value>>15) & (g|s);
+		}
+		else if(half::round_style == std::round_toward_infinity)
+			value -= (value>>15) - 1;
+		else if(half::round_style == std::round_toward_neg_infinity)
+			value += value >> 15;
+		return half(detail::binary, value);
+	}
 
 	/// Common logarithm.
 	/// \param arg function argument
@@ -2205,7 +2383,48 @@ namespace half_float
 	/// \param base first argument
 	/// \param exp second argument
 	/// \return \a base raised to \a exp
-	inline half pow(half base, half exp) { return half(std::pow(static_cast<float>(base), static_cast<float>(exp))); }
+	inline half pow(half base, half exp)
+	{
+		int absx = base.data_ & 0x7FFF, absy = exp.data_ & 0x7FFF, iexp;
+		if(!absy)
+			return half(detail::binary, 0x3C00);
+		if(absx > 0x7C00)
+			return base;
+		if(base.data_ == 0x3C00)
+			return base;
+		if(absy > 0x7C00)
+			return exp;
+		if(absy == 0x7C00)
+			return half(detail::binary, (absx==0x3C00) ? 0x3C00 : (0x7C00&-((exp.data_>>15)^(absx>0x3C00))));
+		bool is_odd, is_int = detail::is_integer(absy, iexp, is_odd);
+		if(absx == 0x7C00)
+			return half(detail::binary, ((static_cast<unsigned>(is_odd)<<15)&base.data_)|(0x7C00&((exp.data_>>15)-1U)));
+		if(!absx)
+			return half(detail::binary, ((static_cast<unsigned>(is_odd)<<15)&base.data_)|(0x7C00&-(exp.data_>>15)));
+		if((absx&0x8000) && !is_int)
+			return half(detail::binary, 0x7FFF);
+		return half(std::pow(static_cast<float>(base), static_cast<float>(exp)));
+	}
+
+	/// Power function.
+	/// \param base first argument
+	/// \param exp second argument
+	/// \return \a base raised to \a exp
+	inline half pow(half base, int exp)
+	{
+		int abs = base.data_ & 0x7FFF;
+		if(!exp)
+			return half(detail::binary, 0x3C00);
+		if(abs > 0x7C00)
+			return base;
+		if(base.data_ == 0x3C00)
+			return base;
+		if(abs == 0x7C00)
+			return half(detail::binary, (((std::abs(exp)&1U)<<15)&base.data_)|(0x7C00&-static_cast<unsigned>(exp>0)));
+		if(!abs)
+			return half(detail::binary, (((std::abs(exp)&1U)<<15)&base.data_)|(0x7C00&-static_cast<unsigned>(exp<0)));
+		return half(std::pow(static_cast<float>(base), exp));
+	}
 
 	/// \}
 	/// \name Trigonometric functions
@@ -2217,64 +2436,13 @@ namespace half_float
 	inline std::pair<half,half> sincos(half arg)
 	{
 //		return std::make_pair(half(std::sin(static_cast<float>(arg))), half(std::cos(static_cast<float>(arg))));
-		static const unsigned int N = 32;
-		static const unsigned long angles[32] = {
-			0xC90FDAA2, 0x76B19C16, 0x3EB6EBF2, 0x1FD5BA9B, 0x0FFAADDC, 0x07FF556F, 0x03FFEAAB, 0x01FFFD55,
-			0x00FFFFAB, 0x007FFFF5, 0x003FFFFF, 0x001FFFFF, 0x00100000, 0x00080000, 0x00040000, 0x00020000,
-			0x00010000, 0x00008000, 0x00004000, 0x00002000, 0x00001000, 0x00000800, 0x00000400, 0x00000200,
-			0x00000100, 0x00000080, 0x00000040, 0x00000020, 0x00000010, 0x00000008, 0x00000004, 0x00000002 };
 		int abs = arg.data_ & 0x7FFF;
 		if(abs >= 0x7C00)
 			return std::make_pair(half(detail::binary, 0x7FFF), half(detail::binary, 0x7FFF));
 		if(!abs)
 			return std::make_pair(arg, half(detail::binary, 0x3C00));
-		if(abs > 0x3E48)
-			return std::make_pair(half(std::sin(static_cast<float>(arg))), half(std::cos(static_cast<float>(arg))));
-
-		int exp = (abs>>10) + (abs<=0x3FF);
-		unsigned long sign = -static_cast<unsigned long>(arg.data_>>15);
-		unsigned long mx = 0x26DD3B6A, my = 0, mz = ((((abs&0x3FF)|((abs>0x3FF)<<10))<<(N-27+exp))^sign) - sign;
-		for(unsigned int i=0; i<N; ++i)
-		{
-			unsigned long sign = -((mz>>(N-1))&1), tx = mx - (((my>>i)^sign)-sign);
-			my += ((mx>>i)^sign) - sign;
-			mx = tx;
-			mz -= (((angles[i]+0x2)>>(N-2))^sign) - sign;
-		}
-
-		unsigned long signx = -((mx>>(N-1))&1), signy = -((my>>(N-1))&1);
-		mx = (mx^signx) - signx;
-		my = (my^signy) - signy;
-
-		int expx = 15, expy = 15;
-		for(; mx<0x40000000 && expx>1; mx<<=1, --expx);
-		for(; my<0x40000000 && expy>1; my<<=1, --expy);
-		int s = (mx&((1L<<(N-13))-1)) != 0, g = (mx>>(N-13)) & 1;
-		detail::uint16 valuex = (signx&0x8000) | ((expx-1)<<10) + (mx>>(N-12));
-		if(half::round_style == std::round_to_nearest)
-			#if HALF_ROUND_TIES_TO_EVEN
-				valuex += g & (s|valuex);
-			#else
-				valuex += g;
-			#endif
-		else if(half::round_style == std::round_toward_infinity)
-			valuex += ~(valuex>>15) & (g|s);
-		else if(half::round_style == std::round_toward_neg_infinity)
-			valuex += (valuex>>15) & (g|s);
-		s = (my&((1L<<(N-13))-1)) != 0;
-		g = (my>>(N-13)) & 1;
-		detail::uint16 valuey = (signy&0x8000) | ((expy-1)<<10) + (my>>(N-12));
-		if(half::round_style == std::round_to_nearest)
-			#if HALF_ROUND_TIES_TO_EVEN
-				valuey += g & (s|valuey);
-			#else
-				valuey += g;
-			#endif
-		else if(half::round_style == std::round_toward_infinity)
-			valuey += ~(valuey>>15) & (g|s);
-		else if(half::round_style == std::round_toward_neg_infinity)
-			valuey += (valuey>>15) & (g|s);
-		return std::make_pair(half(detail::binary, valuey), half(detail::binary, valuex));
+		std::pair<detail::uint16,detail::uint16> sc = detail::sincos<true,true>(arg.data_);
+		return std::make_pair(half(detail::binary, sc.first), half(detail::binary, sc.second));
 	}
 
 	/// Sine function.
@@ -2283,7 +2451,12 @@ namespace half_float
 	inline half sin(half arg)
 	{
 //		return half(std::sin(static_cast<float>(arg)));
-		return sincos(arg).first;
+		int abs = arg.data_ & 0x7FFF;
+		if(abs >= 0x7C00)
+			return half(detail::binary, 0x7FFF);
+		if(!abs)
+			return arg;
+		return half(detail::binary, detail::sincos<true,false>(arg.data_).first);
 	}
 
 	/// Cosine function.
@@ -2292,7 +2465,12 @@ namespace half_float
 	inline half cos(half arg)
 	{
 //		return half(std::cos(static_cast<float>(arg)));
-		return sincos(arg).second;
+		int abs = arg.data_ & 0x7FFF;
+		if(abs >= 0x7C00)
+			return half(detail::binary, 0x7FFF);
+		if(!abs)
+			return half(detail::binary, 0x3C00);
+		return half(detail::binary, detail::sincos<false,true>(arg.data_).second);
 	}
 
 	/// Tangent function.
@@ -2301,8 +2479,13 @@ namespace half_float
 	inline half tan(half arg)
 	{
 //		return half(std::tan(static_cast<float>(arg)));
-		std::pair<half,half> sc = sincos(arg);
-		return sc.first / sc.second;
+		int abs = arg.data_ & 0x7FFF;
+		if(abs >= 0x7C00)
+			return half(detail::binary, 0x7FFF);
+		if(!abs)
+			return arg;
+		std::pair<detail::uint16,detail::uint16> sc = detail::sincos<true,true>(arg.data_);
+		return half(detail::binary, sc.first) / half(detail::binary, sc.second);
 	}
 
 	/// Arc sine.
@@ -2311,7 +2494,12 @@ namespace half_float
 	inline half asin(half arg)
 	{
 		return half(std::asin(static_cast<float>(arg)));
-		return atan2(hypot(arg, half(detail::binary, 0x3C00)), arg);
+		int abs = arg.data_ & 0x7FFF;
+		if(abs > 0x3C00)
+			return half(detail::binary, 0x7FFF);
+		if(!abs)
+			return arg;
+		return half(detail::binary, detail::atan2(arg.data_, hypot(arg, half(detail::binary, 0x3C00)).data_));
 	}
 
 	/// Arc cosine function.
@@ -2320,7 +2508,12 @@ namespace half_float
 	inline half acos(half arg)
 	{
 		return half(std::acos(static_cast<float>(arg)));
-		return atan2(arg, hypot(arg, half(detail::binary, 0x3C00)));
+		int abs = arg.data_ & 0x7FFF;
+		if(abs > 0x3C00)
+			return half(detail::binary, 0x7FFF);
+		if(!abs)
+			return arg;
+		return half(detail::binary, detail::atan2(hypot(arg, half(detail::binary, 0x3C00)).data_, arg.data_));
 	}
 
 	/// Arc tangent function.
@@ -2336,16 +2529,16 @@ namespace half_float
 			return half(detail::binary, 0x3E48+(half::round_style==std::round_toward_infinity));
 		if(arg.data_ == 0xFC00)
 			return half(detail::binary, 0xBE48+(half::round_style==std::round_toward_neg_infinity));
-		return atan2(half(detail::binary, 0x3C00), arg);
+		return half(detail::binary, detail::atan2(arg.data_, 0x3C00));
 	}
 
 	/// Arc tangent function.
-	/// \param x first argument
 	/// \param y second argument
+	/// \param x first argument
 	/// \return arc tangent value
-	inline half atan2(half x, half y)
+	inline half atan2(half y, half x)
 	{
-		return half(std::atan2(static_cast<float>(x), static_cast<float>(y)));
+		return half(std::atan2(static_cast<float>(y), static_cast<float>(x)));
 		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
 		if(absx > 0x7C00)
 			return x;
@@ -2377,6 +2570,7 @@ namespace half_float
 		if(x.data_ == 0xFC00)
 			return half(detail::binary, y.data_ ? (0xC248+(half::round_style==std::round_toward_neg_infinity)) : 
 				(0x4248+(half::round_style==std::round_toward_infinity)));
+		return half(detail::binary, detail::atan2(y.data_, x.data_));
 	}
 
 	/// \}
