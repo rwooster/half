@@ -203,8 +203,8 @@ public:
 
 		//test exponential functions
 		UNARY_MATH_TEST(exp);
-*/		UNARY_MATH_TEST(log);
-/*		UNARY_MATH_TEST(log10);
+		UNARY_MATH_TEST(log);
+		UNARY_MATH_TEST(log10);
 
 		//test power functions
 		UNARY_MATH_TEST(sqrt);
@@ -268,11 +268,11 @@ public:
 		TERNARY_MATH_TEST(fma);
 
 		//test exponential functions
-		UNARY_MATH_TEST(exp2);
-		UNARY_MATH_TEST(expm1);
+*/		UNARY_MATH_TEST(exp2);
+/*		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
-		UNARY_MATH_TEST(log2);
-
+*/		UNARY_MATH_TEST(log2);
+/*
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
 		BINARY_MATH_TEST(hypot);
@@ -623,6 +623,7 @@ int main(int argc, char *argv[])
 	std::cout << sum;
 	return 0;
 */
+	std::cout << std::hex << static_cast<unsigned long long>(4294967296.0*std::log2(10.0)) << std::dec << '\n';
 	half pi = half_cast<half,std::round_to_nearest>(3.1415926535897932384626433832795L);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;

@@ -1080,8 +1080,10 @@ namespace half_float
 		friend half fmax(half, half);
 		friend half fmin(half, half);
 		friend half fdim(half, half);
+		friend half exp(half);
 		friend half exp2(half);
 		friend half log(half);
+		friend half log10(half);
 		friend half log2(half);
 		friend half sqrt(half);
 		friend half cbrt(half);
@@ -1934,7 +1936,110 @@ namespace half_float
 	/// Exponential function.
 	/// \param arg function argument
 	/// \return e raised to \a arg
-	inline half exp(half arg) { return half(std::exp(static_cast<float>(arg))); }
+	inline half exp(half arg)
+	{
+		static const unsigned long loge = 0x171547;
+		static const unsigned long logs[27] = {
+			0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B, 0x00B84E23, 0x005C3E10, 
+			0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153, 0x0000B8AA, 0x00005C55, 0x00002E2B, 
+			0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171, 0x000000B9, 0x0000005C, 0x0000002E, 0x00000017 };
+		unsigned int abs = arg.data_ & 0x7FFF;
+		if(abs > 0x7C00)
+			return arg;
+		if(abs == 0x7C00)
+			return half(detail::binary, 0x7C00&((arg.data_>>15)-1U));
+		if(!abs)
+			return half(detail::binary, 0x3C00);
+		bool sign = arg.data_ & 0x8000;
+		unsigned long m = ((abs&0x3FF)+((abs>0x3FF)<<10)) * loge, mx = 0x80000000, my = 0;
+		int e = (abs>>10) + (abs<=0x3FF), exp, g, s = 0;
+		if(e < 14)
+		{
+			exp = 0;
+			m >>= 14 - e;
+		}
+		else
+		{
+			exp = m >> (45-e);
+			m = (m<<(e-14)) & 0x7FFFFFFF;
+		}
+		if(m)
+		{
+			for(unsigned int i=0; i<27; ++i)
+			{
+				unsigned long mz = my + logs[i];
+				if(mz <= m)
+				{
+					my = mz;
+					mx += mx >> (i+1);
+				}
+			}
+		}
+		detail::uint16 value;
+		if(sign)
+		{
+			if(mx > 0x80000000)
+			{
+				++exp;
+			#if HALF_ENABLE_CPP11_LONG_LONG
+				unsigned long long one = 0x8000000000000000U;
+				s = one % mx != 0;
+				mx = one / mx;
+			#else
+				mx >>= 1;
+				unsigned long rem = 0x80000000, div = 0;
+				for(unsigned int i=0; i<32; ++i)
+				{
+					div <<= 1;
+					if(rem >= mx)
+					{
+						rem -= mx;
+						div |= 1;
+					}
+					rem <<= 1;
+				}
+				s = rem > 1;
+				mx = div;
+			#endif
+			}
+			if(exp < 15)
+			{
+				g = (mx>>20) & 1;
+				s |= (mx&0xFFFFF) != 0;
+				value = ((15-exp)<<10) | ((mx>>21)&0x3FF);
+			}
+			else if(exp < 25)
+			{
+				int i = 6 + exp;
+				g = (mx>>i) & 1;
+				s |= (mx&((1UL<<i)-1)) != 0;
+				value = mx >> (i+1);
+			}
+			else
+			{
+				g = exp == 25;
+				s |= (1-g) | ((m&0x7FFFFFFF)!=0);
+				value = 0;
+			}
+		}
+		else
+		{
+			if(exp > 15)
+				return half(detail::binary, 0x7BFF+(half::round_style!=std::round_toward_zero && half::round_style!=std::round_toward_neg_infinity));
+			g = (mx>>20) & 1;
+			s |= (mx&0xFFFFF) != 0;
+			value = ((exp+15)<<10) | ((mx>>21)&0x3FF);
+		}
+		if(half::round_style == std::round_to_nearest)
+			#if HALF_ROUND_TIES_TO_EVEN
+				value += g & (s|value);
+			#else
+				value += g;
+			#endif
+		else if(half::round_style == std::round_toward_infinity)
+			value += g | s;
+		return half(detail::binary, value);
+	}
 
 	/// Exponential minus one.
 	/// \param arg function argument
@@ -1966,16 +2071,16 @@ namespace half_float
 			return half(detail::binary, 0x3C00);
 		bool sign = arg.data_ & 0x8000;
 		unsigned long m, mx = 0x80000000, my = 0;
-		int e = (abs>>10) + (abs<=0x3FF) - 15, exp = (abs&0x3FF) + ((abs>0x3FF)<<10), g, s = 0;
-		if(e < 10)
+		int e = (abs>>10) + (abs<=0x3FF), exp = (abs&0x3FF) + ((abs>0x3FF)<<10), g, s = 0;
+		if(e < 25)
 		{
-			m = (static_cast<unsigned long>(exp)<<(21+e)) & 0x7FFFFFFF;
-			exp >>= 10 - e;
+			m = (static_cast<unsigned long>(exp)<<(6+e)) & 0x7FFFFFFF;
+			exp >>= 25 - e;
 		}
 		else
 		{
 			m = 0;
-			exp <<= e - 10;
+			exp <<= e - 25;
 		}
 		if(m)
 		{
@@ -2095,13 +2200,13 @@ namespace half_float
 			return half(detail::binary, 0);
 		int exp = 18;
 		for(; m<0x40000000; m<<=1,--exp) ;
-		int i = m > 0x7FFFFFFF;
-		i -= (m<<(1-i)) < loge;
-		exp += i;
+		int i = m <= 0x7FFFFFFF;
+		i -= (m<<i) >= loge;
+		exp -= i;
 		detail::uint16 value = static_cast<unsigned>(sign) << 15;
 		if(exp > -11)
 		{
-			unsigned long long mm = static_cast<unsigned long long>(m) << (31-i);
+			unsigned long long mm = static_cast<unsigned long long>(m) << (31+i);
 			int g, s = mm % loge != 0;
 			m = mm / loge;
 			if(exp > 0)
@@ -2138,7 +2243,82 @@ namespace half_float
 	/// Common logarithm.
 	/// \param arg function argument
 	/// \return logarithm of \a arg to base 10
-	inline half log10(half arg) { return half(std::log10(static_cast<float>(arg))); }
+	inline half log10(half arg)
+	{
+//		return half(std::log10(static_cast<float>(arg)));
+		static const unsigned long loge = 0xD49A784C;
+		static const unsigned long logs[27] = {
+			0x4AE00D2, 0x2934F09, 0x15C01A4, 0x0B31FB8, 0x05AEB4E, 0x02DCF2D, 0x016FE51, 0x00B84E2, 0x005C3E1, 
+			0x002E24D, 0x001713D, 0x000B8A4, 0x0005C54, 0x0002E2A, 0x0001715, 0x0000B8B, 0x00005C5, 0x00002E3, 
+			0x0000171, 0x00000B9, 0x000005C, 0x000002E, 0x0000017, 0x000000C, 0x0000006, 0x0000003, 0x0000001 };
+		int abs = arg.data_ & 0x7FFF, ilog = -15;
+		if(!abs)
+			return half(detail::binary, 0xFC00);
+		if(arg.data_ & 0x8000)
+			return half(detail::binary, 0x7FFF);
+		if(abs >= 0x7C00)
+			return arg;
+		for(; abs<0x400; abs<<=1,--ilog) ;
+		ilog += abs >> 10;
+		bool sign = ilog < 0;
+		unsigned long m = ((abs&0x3FF)|0x400UL) << 20, mx = 1UL << 30, my = 0;
+		if(m != mx)
+		{
+			for(unsigned int i=1; i<28; ++i)
+			{
+				unsigned long mz = mx + (mx>>i);
+				if(mz <= m)
+				{
+					mx = mz;
+					my += logs[i-1];
+				}
+			}
+			my |= 1;
+		}
+		m = sign ? ((static_cast<unsigned long>(-ilog)<<27)-my) : ((static_cast<unsigned long>(ilog)<<27)+my);
+		if(!m)
+			return half(detail::binary, 0);
+		int exp = 18;
+		for(; m<0x40000000; m<<=1,--exp) ;
+		int i = m <= 0x7FFFFFFF;
+		i -= (m<<i) >= loge;
+		exp -= i + 1;
+		detail::uint16 value = static_cast<unsigned>(sign) << 15;
+		if(exp > -11)
+		{
+			unsigned long long mm = static_cast<unsigned long long>(m) << (31+i);
+			int g, s = mm % loge != 0;
+			m = mm / loge;
+			if(exp > 0)
+			{
+				s |= (m&0x7FFFF) != 0;
+				g = (m>>19) & 1;
+				value |= (exp<<10) | ((m>>20)&0x3FF);
+			}
+			else
+			{
+				int i = 20 - exp;
+				s |= (m&((1<<i)-1)) != 0;
+				g = (m>>i) & 1;
+				value |= m >> (i+1);
+			}
+			if(half::round_style == std::round_to_nearest)
+				#if HALF_ROUND_TIES_TO_EVEN
+					value += g & (s|value);
+				#else
+					value += g;
+				#endif
+			else if(half::round_style == std::round_toward_infinity)
+				value += ~(value>>15) & (g|s);
+			else if(half::round_style == std::round_toward_neg_infinity)
+				value += (value>>15) & (g|s);
+		}
+		else if(half::round_style == std::round_toward_infinity)
+			value -= (value>>15) - 1;
+		else if(half::round_style == std::round_toward_neg_infinity)
+			value += value >> 15;
+		return half(detail::binary, value);
+	}
 
 	/// Natural logarithm.
 	/// \param arg function argument
