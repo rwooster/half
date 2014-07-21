@@ -268,11 +268,11 @@ public:
 		TERNARY_MATH_TEST(fma);
 
 		//test exponential functions
-*/		UNARY_MATH_TEST(exp2);
-/*		UNARY_MATH_TEST(expm1);
+		UNARY_MATH_TEST(exp2);
+		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
-*/		UNARY_MATH_TEST(log2);
-/*
+		UNARY_MATH_TEST(log2);
+
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
 		BINARY_MATH_TEST(hypot);
@@ -394,6 +394,32 @@ public:
 		unary_test("half_cast<round_toward_neg_infinity>(float)", [&rand23](half arg) -> bool { float f = half_cast<float>(arg);
 			std::uint32_t n=rand23(), m=1<<13; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
 			*reinterpret_cast<std::uint32_t*>(&f) |= n&(m-1)&-isfinite(arg); return comp(half_cast<half,std::round_toward_neg_infinity>(f), 
+			(signbit(arg)&&(n&(m-1))) ? nextafter(arg, copysign(std::numeric_limits<half>::infinity(), arg)) : arg); });
+
+		//test double casting
+		auto rand52 = std::bind(std::uniform_int_distribution<std::uint64_t>(0, (1ULL<<52)-1), std::default_random_engine());
+		unary_test("half_cast<double>", [](half arg) -> bool { double a = half_cast<double>(arg), b = static_cast<float>(arg); 
+			return isnan(arg) || *reinterpret_cast<std::uint64_t*>(&a) == *reinterpret_cast<std::uint64_t*>(&b); });
+		unary_test("half_cast<round_to_nearest>(double)", [&rand52](half arg) -> bool { double f = half_cast<double>(arg); 
+			std::uint64_t n=rand52(), m=1ULL<<42; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
+			*reinterpret_cast<std::uint64_t*>(&f) |= n&(m-1)&-isfinite(arg); return fpclassify(arg)==FP_ZERO || 
+			comp(half_cast<half,std::round_to_nearest>(f), 
+			#if HALF_ROUND_TIES_TO_EVEN
+				((n&(m>>1)) && ((n&((m>>1)-1)) || (h2b(arg)&1)))
+			#else
+				(n&(m>>1))
+			#endif
+			? nextafter(arg, copysign(std::numeric_limits<half>::infinity(), arg)) : arg); });
+		unary_test("half_cast<round_toward_zero>(double)", [&rand52](half arg) -> bool { double f = half_cast<double>(arg);
+			std::uint64_t n=rand52(), m=1ULL<<42; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
+			*reinterpret_cast<std::uint64_t*>(&f) |= n&(m-1)&-isfinite(arg); return comp(half_cast<half,std::round_toward_zero>(f), arg); });
+		unary_test("half_cast<round_toward_infinity>(double)", [&rand52](half arg) -> bool { double f = half_cast<double>(arg);
+			std::uint64_t n=rand52(), m=1ULL<<42; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
+			*reinterpret_cast<std::uint64_t*>(&f) |= n&(m-1)&-isfinite(arg); return comp(half_cast<half,std::round_toward_infinity>(f), 
+			(!signbit(arg)&&(n&(m-1))) ? nextafter(arg, copysign(std::numeric_limits<half>::infinity(), arg)) : arg); });
+		unary_test("half_cast<round_toward_neg_infinity>(double)", [&rand52](half arg) -> bool { double f = half_cast<double>(arg);
+			std::uint64_t n=rand52(), m=1ULL<<42; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
+			*reinterpret_cast<std::uint64_t*>(&f) |= n&(m-1)&-isfinite(arg); return comp(half_cast<half,std::round_toward_neg_infinity>(f), 
 			(signbit(arg)&&(n&(m-1))) ? nextafter(arg, copysign(std::numeric_limits<half>::infinity(), arg)) : arg); });
 
 		//test int casting
@@ -623,11 +649,10 @@ int main(int argc, char *argv[])
 	std::cout << sum;
 	return 0;
 */
-	std::cout << std::hex << static_cast<unsigned long long>(4294967296.0*std::log2(10.0)) << std::dec << '\n';
 	half pi = half_cast<half,std::round_to_nearest>(3.1415926535897932384626433832795L);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;
-	half e = half_cast<half,std::round_to_nearest>(std::log2(2.7182818284590452353602874713527L));
+	half e = half_cast<half,std::round_to_nearest>(2.7182818284590452353602874713527L);
 	std::cout << "e:  " << e << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(e) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(e))).to_string() << std::endl;
 
