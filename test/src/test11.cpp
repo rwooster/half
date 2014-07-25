@@ -48,7 +48,7 @@
 #define UNARY_MATH_TEST(func) { \
 	double err = 0.0, rel = 0.0; \
 	bool success = unary_test(#func, [&](half arg) -> bool { \
-		half a = func(arg), b(std::func(static_cast<float>(arg))); bool equal = comp(a, b); \
+		half a = func(arg), b = half_cast<half>(std::func(static_cast<double>(arg))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
 		std::cerr << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
 		err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); } return equal; }); \
@@ -57,7 +57,7 @@
 #define BINARY_MATH_TEST(func) { \
 	double err = 0.0, rel = 0.0; \
 	bool success = binary_test(#func, [&](half x, half y) -> bool { \
-		half a = func(x, y), b(std::func(static_cast<float>(x), static_cast<float>(y))); bool equal = comp(a, b); \
+		half a = func(x, y), b = half_cast<half>(std::func(static_cast<double>(x), static_cast<double>(y))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
 		std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); } return equal; }); \
@@ -66,10 +66,9 @@
 #define TERNARY_MATH_TEST(func) { \
 	double err = 0.0, rel = 0.0; \
 	bool success = ternary_test(#func, [&](half x, half y, half z) -> bool { \
-		half a = func(x, y, z), b(std::func(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z))); bool equal = comp(a, b); \
+		half a = func(x, y, z), b = half_cast<half>(std::func(static_cast<double>(x), static_cast<double>(y), static_cast<double>(z))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		func(x, y, z); \
-		/*std::cerr << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
+		std::cerr << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))), std::abs(static_cast<double>(z)))); } return equal; }); \
 	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
 
@@ -181,12 +180,11 @@ public:
 		unary_test("postfix decrement", [](half arg) -> bool { float f = static_cast<float>(arg); 
 			return comp(static_cast<half>(f--), arg--) && comp(static_cast<half>(f), arg); });
 		unary_test("unary plus", [](half arg) { return comp(+arg, arg); });
-		unary_test("unary minus", [](half arg) { return comp(-arg, static_cast<half>(-static_cast<float>(arg))); });
-
-		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<float>(a)+static_cast<float>(b))); });
-		binary_test("subtraction", [](half a, half b) { return comp(a-b, static_cast<half>(static_cast<float>(a)-static_cast<float>(b))); });
-		binary_test("multiplication", [](half a, half b) { return comp(a*b, static_cast<half>(static_cast<float>(a)*static_cast<float>(b))); });
-		binary_test("division", [](half a, half b) { return comp(a/b, static_cast<half>(static_cast<float>(a)/static_cast<float>(b))); });
+		unary_test("unary minus", [](half arg) { return comp(-arg, static_cast<half>(-static_cast<double>(arg))); });
+		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<double>(a)+static_cast<double>(b))); });
+		binary_test("subtraction", [](half a, half b) { return comp(a-b, static_cast<half>(static_cast<double>(a)-static_cast<double>(b))); });
+		binary_test("multiplication", [](half a, half b) { return comp(a*b, static_cast<half>(static_cast<double>(a)*static_cast<double>(b))); });
+		binary_test("division", [](half a, half b) { return comp(a/b, static_cast<half>(static_cast<double>(a)/static_cast<double>(b))); });
 		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<float>(a)==static_cast<float>(b)); });
 		binary_test("not equal", [](half a, half b) { return (a!=b) == (static_cast<float>(a)!=static_cast<float>(b)); });
 		binary_test("less", [](half a, half b) { return (a<b) == (static_cast<float>(a)<static_cast<float>(b)); });
@@ -261,7 +259,7 @@ public:
 		//test basic functions
 		BINARY_MATH_TEST(remainder);
 		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; bool eq = comp(remquo(a, b, &qh),
-			static_cast<half>(std::remquo(static_cast<float>(a), static_cast<float>(b), &qf))); return eq && (qh&7)==(qf&7); });
+			half_cast<half>(std::remquo(static_cast<double>(a), static_cast<double>(b), &qf))); return eq && (qh&7)==(qf&7); });
 		BINARY_MATH_TEST(fmin);
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);

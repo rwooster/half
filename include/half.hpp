@@ -469,7 +469,8 @@ namespace half_float
 			std::memcpy(&bits, &value, sizeof(double));
 			uint32 hi = bits >> 32, lo = bits & 0xFFFFFFFF;
 			uint16 out = (hi>>16) & 0x8000;
-			int exp = (hi>>20) & 0x7FF;
+			hi &= 0x7FFFFFFF;
+			int exp = hi >> 20;
 			if(exp == 2047)
 				out |= 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0xFFFFFFFFFFFFF)!=0));
 			else if(exp > 1038)
@@ -2655,9 +2656,9 @@ namespace half_float
 		else
 		{
 			int i = 1 - exp;
-			s |= g | ((m&((1<<i)-1))!=0);
+			s |= (m&((1<<i)-1)) != 0;
 			g = (m>>i) & 1;
-			value |= m >> (i+1);
+			value = m >> (i+1);
 		}
 		if(half::round_style == std::round_to_nearest)
 			#if HALF_ROUND_TIES_TO_EVEN
