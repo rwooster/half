@@ -220,8 +220,7 @@
 
 /// Fast half-precision fma function.
 /// This symbol is only defined if the fma() function generally executes as fast as, or faster than, a separate 
-/// half-precision multiplication followed by an addition. Due to the internal single-precision implementation of all 
-/// arithmetic operations, this is in fact always the case.
+/// half-precision multiplication followed by an addition.
 #define FP_FAST_FMAH	1
 
 #ifndef FP_ILOGB0
@@ -1400,19 +1399,26 @@ namespace half_float
 namespace std
 {
 	/// Numeric limits for half-precision floats.
-	/// Because of the underlying single-precision implementation of many operations, it inherits some properties from 
-	/// `std::numeric_limits<float>`.
-	template<> class numeric_limits<half_float::half> : public numeric_limits<float>
+	template<> class numeric_limits<half_float::half>
 	{
 	public:
+		/// Is template specialization.
+		static HALF_CONSTEXPR_CONST bool is_specialized = true;
+
 		/// Supports signed values.
 		static HALF_CONSTEXPR_CONST bool is_signed = true;
+
+		/// Is not an integer type.
+		static HALF_CONSTEXPR_CONST bool is_integer = false;
 
 		/// Is not exact.
 		static HALF_CONSTEXPR_CONST bool is_exact = false;
 
 		/// Doesn't provide modulo arithmetic.
 		static HALF_CONSTEXPR_CONST bool is_modulo = false;
+
+		/// Has a finite set of values.
+		static HALF_CONSTEXPR_CONST bool is_bounded = true;
 
 		/// IEEE conformant.
 		static HALF_CONSTEXPR_CONST bool is_iec559 = true;
@@ -1423,8 +1429,20 @@ namespace std
 		/// Supports quiet NaNs.
 		static HALF_CONSTEXPR_CONST bool has_quiet_NaN = true;
 
+		/// Supports signaling NaNs.
+		static HALF_CONSTEXPR_CONST bool has_signaling_NaN = true;
+
 		/// Supports subnormal values.
 		static HALF_CONSTEXPR_CONST float_denorm_style has_denorm = denorm_present;
+
+		/// Supports no denormalization detection.
+		static HALF_CONSTEXPR_CONST bool has_denorm_loss = false;
+
+		/// Does not trap.
+		static HALF_CONSTEXPR_CONST bool traps = false;
+
+		/// Supports no prepended underflow detection.
+		static HALF_CONSTEXPR_CONST bool tinyness_before = false;
 
 		/// Rounding mode.
 		static HALF_CONSTEXPR_CONST float_round_style round_style = half_float::half::round_style;
