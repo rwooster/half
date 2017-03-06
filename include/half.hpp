@@ -1,6 +1,6 @@
 // half - IEEE 754-based half-precision floating point library.
 //
-// Copyright (c) 2012-2014 Christian Rau <rauy@users.sourceforge.net>
+// Copyright (c) 2012-2017 Christian Rau <rauy@users.sourceforge.net>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation 
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, 
@@ -14,7 +14,7 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// Version 1.11.0
+// Version 1.12.0
 
 /// \file
 /// Main header file for half precision functionality.
@@ -74,6 +74,15 @@
 		#endif
 	#endif
 #elif defined(_MSC_VER)										//Visual C++
+	#if _MSC_VER >= 1900 && !defined(HALF_ENABLE_CPP11_CONSTEXPR)
+		#define HALF_ENABLE_CPP11_CONSTEXPR 1
+	#endif
+	#if _MSC_VER >= 1900 && !defined(HALF_ENABLE_CPP11_NOEXCEPT)
+		#define HALF_ENABLE_CPP11_NOEXCEPT 1
+	#endif
+	#if _MSC_VER >= 1900 && !defined(HALF_ENABLE_CPP11_USER_LITERALS)
+		#define HALF_ENABLE_CPP11_USER_LITERALS 1
+	#endif
 	#if _MSC_VER >= 1600 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)
 		#define HALF_ENABLE_CPP11_STATIC_ASSERT 1
 	#endif
@@ -252,6 +261,19 @@ namespace half_float
 {
 	class half;
 
+#if HALF_ENABLE_CPP11_USER_LITERALS
+	/// Library-defined half-precision literals.
+	/// Import this namespace to enable half-precision floating point literals:
+	/// ~~~~{.cpp}
+	/// using namespace half_float::literal;
+	/// half_float::half = 4.2_h;
+	/// ~~~~
+	namespace literal
+	{
+		half operator""_h(long double);
+	}
+#endif
+
 	/// \internal
 	/// \brief Implementation details.
 	namespace detail
@@ -385,7 +407,52 @@ namespace half_float
 		template<std::float_round_style R> uint16 float2half_impl(float value, true_type)
 		{
 			typedef bits<float>::type uint32;
-			static const uint16 base_table[512] = { 
+			uint32 bits;// = *reinterpret_cast<uint32*>(&value);		//violating strict aliasing!
+			std::memcpy(&bits, &value, sizeof(float));
+/*			uint16 hbits = (bits>>16) & 0x8000;
+			bits &= 0x7FFFFFFF;
+			int exp = bits >> 23;
+			if(exp == 255)
+				return hbits | 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0x7FFFFF)!=0));
+			if(exp > 142)
+			{
+				if(R == std::round_toward_infinity)
+					return hbits | 0x7C00 - (hbits>>15);
+				if(R == std::round_toward_neg_infinity)
+					return hbits | 0x7BFF + (hbits>>15);
+				return hbits | 0x7BFF + (R!=std::round_toward_zero);
+			}
+			int g, s;
+			if(exp > 112)
+			{
+				g = (bits>>12) & 1;
+				s = (bits&0xFFF) != 0;
+				hbits |= ((exp-112)<<10) | ((bits>>13)&0x3FF);
+			}
+			else if(exp > 101)
+			{
+				int i = 125 - exp;
+				bits = (bits&0x7FFFFF) | 0x800000;
+				g = (bits>>i) & 1;
+				s = (bits&((1L<<i)-1)) != 0;
+				hbits |= bits >> (i+1);
+			}
+			else
+			{
+				g = 0;
+				s = bits != 0;
+			}
+			if(R == std::round_to_nearest)
+				#if HALF_ROUND_TIES_TO_EVEN
+					hbits += g & (s|hbits);
+				#else
+					hbits += g;
+				#endif
+			else if(R == std::round_toward_infinity)
+				hbits += ~(hbits>>15) & (s|g);
+			else if(R == std::round_toward_neg_infinity)
+				hbits += (hbits>>15) & (g|s);
+*/			static const uint16 base_table[512] = { 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
@@ -435,8 +502,6 @@ namespace half_float
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 13 };
-			uint32 bits;// = *reinterpret_cast<uint32*>(&value);		//violating strict aliasing!
-			std::memcpy(&bits, &value, sizeof(float));
 			uint16 hbits = base_table[bits>>23] + static_cast<uint16>((bits&0x7FFFFF)>>shift_table[bits>>23]);
 			if(R == std::round_to_nearest)
 				hbits += (((bits&0x7FFFFF)>>(shift_table[bits>>23]-1))|(((bits>>23)&0xFF)==102)) & ((hbits&0x7C00)!=0x7C00)
@@ -456,7 +521,6 @@ namespace half_float
 		}
 
 		/// Convert IEEE double-precision to half-precision.
-		/// Credit for this goes to [Jeroen van der Zijp](ftp://ftp.fox-toolkit.org/pub/fasthalffloatconversion.pdf).
 		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
 		/// \param value double-precision value
 		/// \return binary representation of half-precision value
@@ -467,56 +531,50 @@ namespace half_float
 			uint64 bits;// = *reinterpret_cast<uint64*>(&value);		//violating strict aliasing!
 			std::memcpy(&bits, &value, sizeof(double));
 			uint32 hi = bits >> 32, lo = bits & 0xFFFFFFFF;
-			uint16 out = (hi>>16) & 0x8000;
+			uint16 hbits = (hi>>16) & 0x8000;
 			hi &= 0x7FFFFFFF;
 			int exp = hi >> 20;
 			if(exp == 2047)
-				out |= 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0xFFFFFFFFFFFFF)!=0));
-			else if(exp > 1038)
+				return hbits | 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0xFFFFFFFFFFFFF)!=0));
+			if(exp > 1038)
 			{
-				if(R == std::round_toward_zero)
-					out |= 0x7BFF;
-				else if(R == std::round_toward_infinity)
-					out |= 0x7C00 - (out>>15);
-				else if(R == std::round_toward_neg_infinity)
-					out |= 0x7BFF + (out>>15);
-				else
-					out |= 0x7C00;
+				if(R == std::round_toward_infinity)
+					return hbits | 0x7C00 - (hbits>>15);
+				if(R == std::round_toward_neg_infinity)
+					return hbits | 0x7BFF + (hbits>>15);
+				return hbits | 0x7BFF + (R!=std::round_toward_zero);
+			}
+			int g, s = lo != 0;
+			if(exp > 1008)
+			{
+				g = (hi>>9) & 1;
+				s |= (hi&0x1FF) != 0;
+				hbits |= ((exp-1008)<<10) | ((hi>>10)&0x3FF);
+			}
+			else if(exp > 997)
+			{
+				int i = 1018 - exp;
+				hi = (hi&0xFFFFF) | 0x100000;
+				g = (hi>>i) & 1;
+				s |= (hi&((1L<<i)-1)) != 0;
+				hbits |= hi >> (i+1);
 			}
 			else
 			{
-				int g, s = lo != 0;
-				if(exp > 1008)
-				{
-					g = (hi>>9) & 1;
-					s |= (hi&0x1FF) != 0;
-					out |= ((exp-1008)<<10) | ((hi>>10)&0x3FF);
-				}
-				else if(exp > 997)
-				{
-					int i = 1018 - exp;
-					hi = (hi&0xFFFFF) | 0x100000;
-					g = (hi>>i) & 1;
-					s |= (hi&((1L<<i)-1)) != 0;
-					out |= hi >> (i+1);
-				}
-				else
-				{
-					g = 0;
-					s |= hi != 0;
-				}
-				if(R == std::round_to_nearest)
-					#if HALF_ROUND_TIES_TO_EVEN
-						out += g & (s|out);
-					#else
-						out += g;
-					#endif
-				else if(R == std::round_toward_infinity)
-					out += ~(out>>15) & (s|g);
-				else if(R == std::round_toward_neg_infinity)
-					out += (out>>15) & (g|s);
+				g = 0;
+				s |= hi != 0;
 			}
-			return out;
+			if(R == std::round_to_nearest)
+				#if HALF_ROUND_TIES_TO_EVEN
+					hbits += g & (s|hbits);
+				#else
+					hbits += g;
+				#endif
+			else if(R == std::round_toward_infinity)
+				hbits += ~(hbits>>15) & (s|g);
+			else if(R == std::round_toward_neg_infinity)
+				hbits += (hbits>>15) & (g|s);
+			return hbits;
 		}
 
 		/// Convert non-IEEE floating point to half-precision.
@@ -645,7 +703,7 @@ namespace half_float
 			int abs = value & 0x7FFF;
 			if(abs)
 			{
-				bits |= 0x38000000 << (abs>=0x7C00);
+				bits |= 0x38000000 << static_cast<unsigned>(abs>=0x7C00);
 				for(; abs<0x400; abs<<=1,bits-=0x800000) ;
 				bits += static_cast<uint32>(abs) << 13;
 			}
@@ -787,7 +845,6 @@ namespace half_float
 				   0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 
 				   0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024 };
 			uint32 bits = mantissa_table[offset_table[value>>10]+(value&0x3FF)] + exponent_table[value>>10];
-//			uint32 bits = mantissa_table[(((value&0x7C00)!=0)<<10)+(value&0x3FF)] + exponent_table[value>>10];
 //			return *reinterpret_cast<float*>(&bits);			//violating strict aliasing!
 			float out;
 			std::memcpy(&out, &bits, sizeof(float));
@@ -795,7 +852,6 @@ namespace half_float
 		}
 
 		/// Convert half-precision to IEEE double-precision.
-		/// Credit for this goes to [Jeroen van der Zijp](ftp://ftp.fox-toolkit.org/pub/fasthalffloatconversion.pdf).
 		/// \param value binary representation of half-precision value
 		/// \return double-precision value
 		inline double half2float_impl(uint16 value, double, true_type)
@@ -806,9 +862,9 @@ namespace half_float
 			int abs = value & 0x7FFF;
 			if(abs)
 			{
-				hi |= 0x3F000000 << (abs>=0x7C00);
+				hi |= 0x3F000000 << static_cast<unsigned>(abs>=0x7C00);
 				for(; abs<0x400; abs<<=1,hi-=0x100000) ;
-				hi += abs << 10;
+				hi += static_cast<uint32>(abs) << 10;
 			}
 			uint64 bits = static_cast<uint64>(hi) << 32;
 //			return *reinterpret_cast<double*>(&bits);			//violating strict aliasing!
@@ -830,7 +886,7 @@ namespace half_float
 			else if(abs == 0x7C00)
 				out = std::numeric_limits<T>::has_infinity ? std::numeric_limits<T>::infinity() : std::numeric_limits<T>::max();
 			else if(abs > 0x3FF)
-				out = std::ldexp(static_cast<T>((value&0x3FF)|0x400), (abs>>10)-25);
+				out = std::ldexp(static_cast<T>((abs&0x3FF)|0x400), (abs>>10)-25);
 			else
 				out = std::ldexp(static_cast<T>(abs), -24);
 			return (value&0x8000) ? -out : out;
@@ -1114,7 +1170,8 @@ namespace half_float
 			if(S)
 				valuey = fixed2half(my);
 			return std::make_pair(half(detail::binary, valuey), half(detail::binary, valuex));
-*/		}
+*/			return std::make_pair(half(0.0), half(0.0));
+		}
 
 		inline uint16 atan2(uint16 y, uint16 x)
 		{
@@ -1156,7 +1213,7 @@ namespace half_float
 	/// conversions. It is implicitly convertible to single-precision floating point, which makes artihmetic expressions and 
 	/// functions with mixed-type operands to be of the most precise operand type. Additionally all arithmetic operations 
 	/// (and many mathematical functions) are carried out in single-precision internally. All conversions from single- to 
-	/// half-precision are done using truncation (round towards zero), but temporary results inside chained arithmetic 
+	/// half-precision are done using the library's default rounding mode, but temporary results inside chained arithmetic 
 	/// expressions are kept in single-precision as long as possible (while of course still maintaining a strong half-precision type).
 	///
 	/// According to the C++98/03 definition, the half type is not a POD type. But according to C++11's less strict and 
@@ -1242,12 +1299,15 @@ namespace half_float
 	#if HALF_ENABLE_CPP11_HASH
 		friend struct std::hash<half>;
 	#endif
+	#if HALF_ENABLE_CPP11_USER_LITERALS
+		friend half literal::operator""_h(long double);
+	#endif
 
 	public:
 		/// Default constructor.
 		/// This initializes the half to 0. Although this does not match the builtin types' default-initialization semantics 
 		/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
-		HALF_CONSTEXPR half() /*HALF_NOEXCEPT*/ : data_() {}
+		HALF_CONSTEXPR half() HALF_NOEXCEPT : data_() {}
 
 		/// Conversion constructor.
 		/// \param rhs float to convert
@@ -1328,27 +1388,21 @@ namespace half_float
 
 		/// Constructor.
 		/// \param bits binary representation to set half to
-		HALF_CONSTEXPR half(detail::binary_t, detail::uint16 bits) /*HALF_NOEXCEPT*/ : data_(bits) {}
+		HALF_CONSTEXPR half(detail::binary_t, detail::uint16 bits) HALF_NOEXCEPT : data_(bits) {}
 
 		/// Internal binary representation
 		detail::uint16 data_;
 	};
 
 #if HALF_ENABLE_CPP11_USER_LITERALS
-	/// Library-defined half-precision literals.
-	/// Import this namespace to enable half-precision floating point literals:
-	/// ~~~~{.cpp}
-	/// using namespace half_float::literal;
-	/// half_float::half = 4.2_h;
-	/// ~~~~
 	namespace literal
 	{
 		/// Half literal.
 		/// While this returns an actual half-precision value, half literals can unfortunately not be constant expressions due 
-		/// to rather involved single-to-half conversion.
+		/// to rather involved conversions.
 		/// \param value literal value
 		/// \return half with given value (if representable)
-		inline half operator "" _h(long double value) { return half(static_cast<float>(value)); }
+		inline half operator""_h(long double value) { return half(detail::binary, detail::float2half<half::round_style>(value)); }
 	}
 #endif
 
@@ -1367,7 +1421,6 @@ namespace half_float
 			static_assert(std::is_arithmetic<U>::value, "half_cast from non-arithmetic type unsupported");
 		#endif
 
-			typedef half type;
 			static half cast(U arg) { return cast_impl(arg, is_float<U>()); };
 
 		private:
@@ -1380,7 +1433,6 @@ namespace half_float
 			static_assert(std::is_arithmetic<T>::value, "half_cast to non-arithmetic type unsupported");
 		#endif
 
-			typedef T type;
 			static T cast(half arg) { return cast_impl(arg, is_float<T>()); }
 
 		private:
@@ -1389,7 +1441,6 @@ namespace half_float
 		};
 		template<std::float_round_style R> struct half_caster<half,half,R>
 		{
-			typedef half type;
 			static half cast(half arg) { return arg; }
 		};
 	}
@@ -3356,11 +3407,9 @@ namespace half_float
 	/// \{
 
 	/// Cast to or from half-precision floating point number.
-	/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
-	/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
-	/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
-	/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
-	/// that a `static_cast` would otherwise do. It uses the default rounding mode.
+	/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. The values are converted 
+	/// directly using the given rounding mode, without any roundtrip over `float` that a `static_cast` would otherwise do. 
+	/// It uses the default rounding mode.
 	///
 	/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
 	/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
@@ -3369,14 +3418,11 @@ namespace half_float
 	/// \tparam U source type (half or built-in arithmetic type)
 	/// \param arg value to cast
 	/// \return \a arg converted to destination type
-	template<typename T,typename U> typename detail::half_caster<T,U>::type half_cast(U arg) { return detail::half_caster<T,U>::cast(arg); }
+	template<typename T,typename U> T half_cast(U arg) { return detail::half_caster<T,U>::cast(arg); }
 
 	/// Cast to or from half-precision floating point number.
-	/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
-	/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
-	/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
-	/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
-	/// that a `static_cast` would otherwise do.
+	/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. The values are converted 
+	/// directly using the given rounding mode, without any roundtrip over `float` that a `static_cast` would otherwise do.
 	///
 	/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
 	/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
@@ -3386,8 +3432,7 @@ namespace half_float
 	/// \tparam U source type (half or built-in arithmetic type)
 	/// \param arg value to cast
 	/// \return \a arg converted to destination type
-	template<typename T,std::float_round_style R,typename U> typename detail::half_caster<T,U,R>::type half_cast(U arg)
-		{ return detail::half_caster<T,U,R>::cast(arg); }
+	template<typename T,std::float_round_style R,typename U> T half_cast(U arg) { return detail::half_caster<T,U,R>::cast(arg); }
 	/// \}
 }
 

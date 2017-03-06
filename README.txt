@@ -1,4 +1,4 @@
-HALF-PRECISION FLOATING POINT LIBRARY (Version 1.11.0)
+HALF-PRECISION FLOATING POINT LIBRARY (Version 1.12.0)
 ------------------------------------------------------
 
 This is a C++ header-only library to provide an IEEE 754 conformant 16-bit 
@@ -29,14 +29,15 @@ or when a feature should be explicitly disabled:
   - Static assertions for extended compile-time checks (enabled for VC++ 2010, 
     gcc 4.3, clang 2.9 and newer, overridable with 'HALF_ENABLE_CPP11_STATIC_ASSERT').
 
-  - Generalized constant expressions (enabled for gcc 4.6, clang 3.1 and newer, 
-    overridable with 'HALF_ENABLE_CPP11_CONSTEXPR').
+  - Generalized constant expressions (enabled for VC++ 2015, gcc 4.6, clang 3.1 
+    and newer, overridable with 'HALF_ENABLE_CPP11_CONSTEXPR').
 
-  - noexcept exception specifications (enabled for gcc 4.6, clang 3.0 and newer, 
-    overridable with 'HALF_ENABLE_CPP11_NOEXCEPT').
+  - noexcept exception specifications (enabled for VC++ 2015, gcc 4.6, clang 3.0 
+    and newer, overridable with 'HALF_ENABLE_CPP11_NOEXCEPT').
 
   - User-defined literals for half-precision literals to work (enabled for 
-    gcc 4.7, clang 3.1 and newer, overridable with 'HALF_ENABLE_CPP11_USER_LITERALS').
+    VC++ 2015, gcc 4.7, clang 3.1 and newer, overridable with 
+    'HALF_ENABLE_CPP11_USER_LITERALS').
 
   - Type traits and template meta-programming features from <type_traits> 
     (enabled for VC++ 2010, libstdc++ 4.3, libc++ and newer, overridable with 
@@ -53,7 +54,7 @@ or when a feature should be explicitly disabled:
   - Hash functor 'std::hash' from <functional> (enabled for VC++ 2010, 
     libstdc++ 4.3, libc++ and newer, overridable with 'HALF_ENABLE_CPP11_HASH').
 
-The library has been tested successfully with Visual C++ 2005-2013, gcc 4.4-4.8 
+The library has been tested successfully with Visual C++ 2005-2015, gcc 4.4-4.8 
 and clang 3.1. Please contact me if you have any problems, suggestions or even 
 just success testing it on other platforms.
 
@@ -106,7 +107,7 @@ Furthermore the library provides proper specializations for
 the library also defines the 'HUGE_VALH' constant and maybe the 'FP_FAST_FMAH' 
 symbol.
 
-CONVERSIONS
+CONVERSIONS AND ROUNDING
 
 The half is explicitly constructible/convertible from a single-precision float 
 argument. Thus it is also explicitly constructible/convertible from any type 

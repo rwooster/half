@@ -1,6 +1,6 @@
 // half - IEEE 754-based half-precision floating point library.
 //
-// Copyright (c) 2012-2014 Christian Rau <rauy@users.sourceforge.net>
+// Copyright (c) 2012-2017 Christian Rau <rauy@users.sourceforge.net>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation 
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, 
@@ -72,7 +72,7 @@ namespace half_float
 	/// conversions. It is implicitly convertible to single-precision floating point, which makes artihmetic expressions and 
 	/// functions with mixed-type operands to be of the most precise operand type. Additionally all arithmetic operations 
 	/// (and many mathematical functions) are carried out in single-precision internally. All conversions from single- to 
-	/// half-precision are done using truncation (round towards zero), but temporary results inside chained arithmetic 
+	/// half-precision are done using the library's default rounding mode, but temporary results inside chained arithmetic 
 	/// expressions are kept in single-precision as long as possible (while of course still maintaining a strong half-precision type).
 	///
 	/// According to the C++98/03 definition, the half type is not a POD type. But according to C++11's less strict and 
@@ -95,7 +95,7 @@ namespace half_float
 		/// Default constructor.
 		/// This initializes the half to 0. Although this does not match the builtin types' default-initialization semantics 
 		/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
-		constexpr half();
+		constexpr half() noexcept;
 
 		/// Conversion constructor.
 		/// \param rhs float to convert
@@ -818,10 +818,10 @@ namespace half_float
 	{
 		/// Half literal.
 		/// While this returns an actual half-precision value, half literals can unfortunately not be constant expressions due 
-		/// to rather involved single-to-half conversion.
+		/// to rather involved conversions.
 		/// \param value literal value
 		/// \return half with given value (if representable)
-		half operator "" _h(long double value);
+		half operator""_h(long double value);
 	}
 }
 
@@ -934,5 +934,3 @@ namespace std
 		std::size_t operator()(half_float::half arg) const;
 	};
 }
-
-#endif

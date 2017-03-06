@@ -1,9 +1,15 @@
 Release Notes											{#changelog}
 =============
 
+1.12.0 release (2017-03-06):
+----------------------------
+
 - Changed behaviour of `half_cast` to perform conversions to/from `double` 
-  and `long double` directly without an intermediate `float` conversion.
+  and `long double` directly according to specified rounding mode, without an 
+  intermediate `float` conversion.
+- Added `noexcept` specifiers to constructors.
 - Fixed minor portability problem with `logb` and `ilogb`.
+- Tested for *VC++ 2015*.
 
 
 1.11.0 release (2013-11-16):
