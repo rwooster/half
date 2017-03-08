@@ -46,31 +46,31 @@
 
 
 #define UNARY_MATH_TEST(func) { \
-	double err = 0.0, rel = 0.0; \
+	double err = 0.0, rel = 0.0; int bin = 0; \
 	bool success = unary_test(#func, [&](half arg) -> bool { \
 		half a = func(arg), b = half_cast<half>(std::func(static_cast<double>(arg))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		std::cerr << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
-		err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
+		/*std::cerr << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
+		err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << " - max binary error: " << bin << '\n'; }
 
 #define BINARY_MATH_TEST(func) { \
-	double err = 0.0, rel = 0.0; \
+	double err = 0.0, rel = 0.0; int bin = 0; \
 	bool success = binary_test(#func, [&](half x, half y) -> bool { \
 		half a = func(x, y), b = half_cast<half>(std::func(static_cast<double>(x), static_cast<double>(y))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
-		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
+		/*std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
+		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << " - max binary error: " << bin << '\n'; }
 
 #define TERNARY_MATH_TEST(func) { \
-	double err = 0.0, rel = 0.0; \
+	double err = 0.0, rel = 0.0; int bin = 0; \
 	bool success = ternary_test(#func, [&](half x, half y, half z) -> bool { \
 		half a = func(x, y, z), b = half_cast<half>(std::func(static_cast<double>(x), static_cast<double>(y), static_cast<double>(z))); bool equal = comp(a, b); \
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		std::cerr << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec; \
-		err = std::max(err, error); rel = std::max(rel, error/std::min(std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))), std::abs(static_cast<double>(z)))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
+		/*std::cerr << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
+		err = std::max(err, error); rel = std::max(rel, error/std::min(std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))), std::abs(static_cast<double>(z)))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << " - max binary error: " << bin << '\n'; }
 
 
 using half_float::half;
@@ -144,7 +144,14 @@ public:
 
 	unsigned int test()
 	{
-//		std::fesetround(FE_TOWARDZERO);
+		switch(std::numeric_limits<half>::round_style)
+		{
+		case std::round_indeterminate: std::fesetround(FE_TOWARDZERO); break;
+		case std::round_to_nearest: std::fesetround(FE_TONEAREST); break;
+		case std::round_toward_zero: std::fesetround(FE_TOWARDZERO); break;
+		case std::round_toward_infinity: std::fesetround(FE_UPWARD); break;
+		case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
+		}
 
 		//test size
 		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
@@ -161,7 +168,7 @@ public:
 		class_test("isnan", [](half arg, int cls) { return isnan(arg) == (cls==FP_NAN); });
 		class_test("isnormal", [](half arg, int cls) { return isnormal(arg) == (cls==FP_NORMAL); });
 		unary_test("signbit", [](half arg) -> bool { double f = arg; return isnan(arg) || f==0.0 || (signbit(arg)==(f<0.0)); });
-
+/*
 		//test operators
 		unary_test("prefix increment", [](half arg) -> bool { double f = static_cast<double>(arg); 
 			return comp(static_cast<half>(++f), ++arg) && comp(static_cast<half>(f), arg); });
@@ -172,11 +179,11 @@ public:
 		unary_test("postfix decrement", [](half arg) -> bool { double f = static_cast<double>(arg); 
 			return comp(static_cast<half>(f--), arg--) && comp(static_cast<half>(f), arg); });
 		unary_test("unary plus", [](half arg) { return comp(+arg, arg); });
-		unary_test("unary minus", [](half arg) { return comp(-arg, static_cast<half>(-static_cast<double>(arg))); });
-		binary_test("addition", [](half a, half b) { return comp(a+b, static_cast<half>(static_cast<double>(a)+static_cast<double>(b))); });
-		binary_test("subtraction", [](half a, half b) { return comp(a-b, static_cast<half>(static_cast<double>(a)-static_cast<double>(b))); });
-		binary_test("multiplication", [](half a, half b) { return comp(a*b, static_cast<half>(static_cast<double>(a)*static_cast<double>(b))); });
-		binary_test("division", [](half a, half b) { return comp(a/b, static_cast<half>(static_cast<double>(a)/static_cast<double>(b))); });
+		unary_test("unary minus", [](half arg) { return comp(-arg, half_cast<half>(-static_cast<double>(arg))); });
+		binary_test("addition", [](half a, half b) { return comp(a+b, half_cast<half>(static_cast<double>(a)+static_cast<double>(b))); });
+		binary_test("subtraction", [](half a, half b) { return comp(a-b, half_cast<half>(static_cast<double>(a)-static_cast<double>(b))); });
+		binary_test("multiplication", [](half a, half b) { return comp(a*b, half_cast<half>(static_cast<double>(a)*static_cast<double>(b))); });
+		binary_test("division", [](half a, half b) { return comp(a/b, half_cast<half>(static_cast<double>(a)/static_cast<double>(b))); });
 		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<double>(a)==static_cast<double>(b)); });
 		binary_test("not equal", [](half a, half b) { return (a!=b) == (static_cast<double>(a)!=static_cast<double>(b)); });
 		binary_test("less", [](half a, half b) { return (a<b) == (static_cast<double>(a)<static_cast<double>(b)); });
@@ -189,13 +196,13 @@ public:
 		UNARY_MATH_TEST(fabs);
 		BINARY_MATH_TEST(fmod);
 		binary_test("fdim", [](half a, half b) -> bool { half c = fdim(a, b); return isnan(a) || isnan(b) || 
-			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, static_cast<half>(0.0f))); });
+			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, half_cast<half>(0.0))); });
 
 		//test exponential functions
-		UNARY_MATH_TEST(exp);
+*/		UNARY_MATH_TEST(exp);
 		UNARY_MATH_TEST(log);
 		UNARY_MATH_TEST(log10);
-
+/*
 		//test power functions
 		UNARY_MATH_TEST(sqrt);
 		BINARY_MATH_TEST(pow);
@@ -250,19 +257,19 @@ public:
 	#if HALF_ENABLE_CPP11_CMATH
 		//test basic functions
 		BINARY_MATH_TEST(remainder);
-		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; bool eq = comp(remquo(a, b, &qh),
-			half_cast<half>(std::remquo(static_cast<double>(a), static_cast<double>(b), &qf))); return eq && (qh&7)==(qf&7); });
+		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; return comp(remquo(a, b, &qh),
+			half_cast<half>(std::remquo(static_cast<double>(a), static_cast<double>(b), &qf))) && (qh&7)==(qf&7); });
 		BINARY_MATH_TEST(fmin);
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
 
 		//test exponential functions
-		UNARY_MATH_TEST(exp2);
+*/		UNARY_MATH_TEST(exp2);
 		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
 		UNARY_MATH_TEST(log2);
-
+/*
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
 		BINARY_MATH_TEST(hypot);
@@ -465,7 +472,7 @@ public:
 		simple_test("literals", []() -> bool { using namespace half_float::literal; return comp(0.0_h, half(0.0f)) && comp(-1.0_h, half(-1.0f)) && 
 			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3f)); });
 	#endif
-
+*/
 		if(failed_.empty())
 			log_ << "all tests passed\n";
 		else
@@ -549,20 +556,26 @@ private:
 	template<typename F> bool binary_test(const std::string &name, F test)
 	{
 		unsigned long tests = 0, count = 0, step = fast_ ? 64 : 1;
-		auto rand = std::bind(std::uniform_int_distribution<std::size_t>(0, step-1), std::default_random_engine());
+		auto rand = std::bind(std::uniform_int_distribution<std::uint16_t>(0, step-1), std::default_random_engine());
 		log_ << "testing " << name << ": ";
 		for(auto iterB1=halfs_.begin(); iterB1!=halfs_.end(); ++iterB1)
 		{
+			unsigned int end1 = (iterB1->first.find("NaN")==std::string::npos) ? iterB1->second.size() : 1;
 			for(auto iterB2=halfs_.begin(); iterB2!=halfs_.end(); ++iterB2)
 			{
-				unsigned int end1 = (iterB1->first.find("NaN")==std::string::npos) ? iterB1->second.size() : 1;
 				unsigned int end2 = (iterB2->first.find("NaN")==std::string::npos) ? iterB2->second.size() : 1;
-				for(unsigned int i=fast_ ? std::min(rand(), iterB1->second.size()-1) : 0; i<end1; i+=step)
+				for(unsigned int i=0; i<end1; i+=step)
 				{
-					for(unsigned int j=fast_ ? std::min(rand(), iterB2->second.size()-1) : 0; j<end2; j+=step)
+					half a = iterB1->second[i];
+					if(fast_ && end1 >= step)
+						a = b2h(h2b(a)|rand());
+					for(unsigned int j=0; j<end2; j+=step)
 					{
+						half b = iterB2->second[j];
+						if(fast_ && end2 >= step)
+							b = b2h(h2b(b)|rand());
+						count += test(a, b);
 						++tests;
-						count += test(iterB1->second[i], iterB2->second[j]);
 					}
 				}
 			}
@@ -581,24 +594,36 @@ private:
 
 	template<typename F> bool ternary_test(const std::string &name, F test)
 	{
-		static const unsigned int step = 512;
-		auto rand = std::bind(std::uniform_int_distribution<std::size_t>(0, step-1), std::default_random_engine());
+		static const unsigned int step = fast_ ? 256 : 1;
+		auto rand = std::bind(std::uniform_int_distribution<std::uint16_t>(0, step-1), std::default_random_engine());
 		unsigned int tests = 0, count = 0;
 		log_ << "testing " << name << ": ";
 		for(auto iterB1=halfs_.begin(); iterB1!=halfs_.end(); ++iterB1)
 		{
+			unsigned int end1 = (iterB1->first.find("NaN")==std::string::npos) ? iterB1->second.size() : 1;
 			for(auto iterB2=halfs_.begin(); iterB2!=halfs_.end(); ++iterB2)
 			{
+				unsigned int end2 = (iterB2->first.find("NaN")==std::string::npos) ? iterB2->second.size() : 1;
 				for(auto iterB3=halfs_.begin(); iterB3!=halfs_.end(); ++iterB3)
 				{
-					for(unsigned int i=std::min(rand(), iterB1->second.size()-1); i<iterB1->second.size(); i+=step)
+					unsigned int end3 = (iterB3->first.find("NaN")==std::string::npos) ? iterB3->second.size() : 1;
+					for(unsigned int i=0; i<end1; i+=step)
 					{
-						for(unsigned int j=std::min(rand(), iterB2->second.size()-1); j<iterB2->second.size(); j+=step)
+						half a = iterB1->second[i];
+						if(fast_ && end1 >= step)
+							a = b2h(h2b(a)|rand());
+						for(unsigned int j=0; j<end2; j+=step)
 						{
-							for(unsigned int k=std::min(rand(), iterB3->second.size()-1); k<iterB3->second.size(); k+=step)
+							half b = iterB2->second[j];
+							if(fast_ && end2 >= step)
+								b = b2h(h2b(b)|rand());
+							for(unsigned int k=0; k<end3; k+=step)
 							{
+								half c = iterB3->second[k];
+								if(fast_ && end3 >= step)
+									c = b2h(h2b(c)|rand());
+								count += test(a, b, c);
 								++tests;
-								count += test(iterB1->second[i], iterB2->second[j], iterB3->second[k]);
 							}
 						}
 					}
@@ -717,7 +742,29 @@ int main(int argc, char *argv[])
 	half e = half_cast<half,std::round_to_nearest>(2.7182818284590452353602874713527L);
 	std::cout << "e:  " << e << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(e) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(e))).to_string() << std::endl;
-
+/*
+	static const long double logs[] = {
+		1.0000000000000000000000000000000000000000000000000000000000000000000000000000L, 0.5849625007211561814537389439478165087598144076924810604557526545410982276485L,
+		0.3219280948873623478703194294893901758648313930245806120547563958159347765589L, 0.1699250014423123629074778878956330175196288153849621209115053090821964552970L,
+		0.0874628412503394082540660108104043540112672823448206881266090643866965081686L, 0.0443941193584534376531019906736094674630459333742491317685543002674288465967L,
+		0.0223678130284545082671320837460849094932677948156179815932199216587899627785L, 0.0112272554232541203378805844158839407281095943600297940811823651462712311786L,
+		0.0056245491938781069198591026740666017211096815383520359072957784732489771013L, 0.0028150156070540381547362547502839489729507927389771959487826944878598909400L,
+		0.0014081943928083889066101665016890524233311715793462235597709051792834906001L, 0.0007042690112466432585379340422201964456668872087249334581924550139514213168L,
+		0.0003521774803010272377989609925281744988670304302127133979341729842842377649L, 0.0001760994864425060348637509459678580940163670081839283659942864068257522373L,
+		0.0000880524301221769086378699983597183301490534085738474534831071719854721939L, 0.0000440268868273167176441087067175806394819146645511899503059774914593663365L,
+		0.0000220136113603404964890728830697555571275493801909791504158295359319433723L, 0.0000110068476674814423006223021573490183469930819844945565597452748333526464L,
+		0.0000055034343306486037230640321058826431606183125807276574241540303833251704L, 0.0000027517197895612831123023958331509538486493412831626219340570294203116559L,
+		0.0000013758605508411382010566802834037147561973553922354232704569052932922954L, 0.0000006879304394358496786728937442939160483304056131990916985043387874690617L,
+		0.0000003439652607217645360118314743718005315334062644619363447395987584138324L, 0.0000001719826406118446361936972479533123619972434705828085978955697643547921L,
+		0.0000000859913228686632156462565208266682841603921494181830811515318381744650L, 0.0000000429956620750168703982940244684787907148132725669106053076409624949917L,
+		0.0000000214978311976797556164155504126645192380395989504741781512309853438587L, 0.0000000107489156388827085092095702361647949603617203979413516082280717515504L,
+		0.0000000053744578294520620044408178949217773318785601260677517784797554422804L, 0.0000000026872289172287079490026152352638891824761667284401180026908031182361L,
+		0.0000000013436144592400232123622589569799954658536700992739887706412976115422L, 0.0000000006718072297764289157920422846078078155859484240808550018085324187007L };
+	std::ofstream out("logs.txt");
+	for(auto val : logs)
+		out << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << static_cast<unsigned long>(std::floor(std::ldexp(val, 27))) << ", \n";
+	return 0;
+*/
 	std::vector<std::string> args(argv, argv+argc);
 	std::unique_ptr<std::ostream> file;
 	bool fast = false;

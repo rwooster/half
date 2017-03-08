@@ -437,6 +437,13 @@ namespace half_float
 	/// \return square root of sum of squares without internal over- or underflows
 	half hypot(half x, half y);
 
+	/// Hypotenuse function.
+	/// \param x first argument
+	/// \param y second argument
+	/// \param z third argument
+	/// \return square root of sum of squares without internal over- or underflows
+	half hypot(half x, half y, half z);
+
 	/// Power function.
 	/// This function uses the underlying single-precision implementation.
 	/// \param base first argument
@@ -486,10 +493,10 @@ namespace half_float
 
 	/// Arc tangent function.
 	/// This function uses the underlying single-precision implementation.
-	/// \param x first argument
-	/// \param y second argument
+	/// \param y numerator
+	/// \param x denominator
 	/// \return arc tangent value
-	half atan2(half x, half y);
+	half atan2(half y, half x);
 
 	/// \}
 	/// \name Hyperbolic functions
