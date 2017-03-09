@@ -22,6 +22,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <set>
 #include <iostream>
 #include <iomanip>
 #include <memory>
@@ -88,7 +89,7 @@ std::uint16_t h2b(half h)
 
 bool comp(half a, half b)
 {
-	return (isnan(a) && isnan(b)) || a == b;
+	return (isnan(a) && isnan(b)) || a == b;//h2b(a) == h2b(b);
 }
 
 
@@ -144,15 +145,7 @@ public:
 
 	unsigned int test()
 	{
-		switch(std::numeric_limits<half>::round_style)
-		{
-		case std::round_indeterminate: std::fesetround(FE_TOWARDZERO); break;
-		case std::round_to_nearest: std::fesetround(FE_TONEAREST); break;
-		case std::round_toward_zero: std::fesetround(FE_TOWARDZERO); break;
-		case std::round_toward_infinity: std::fesetround(FE_UPWARD); break;
-		case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
-		}
-
+/*
 		//test size
 		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
 
@@ -168,7 +161,7 @@ public:
 		class_test("isnan", [](half arg, int cls) { return isnan(arg) == (cls==FP_NAN); });
 		class_test("isnormal", [](half arg, int cls) { return isnormal(arg) == (cls==FP_NORMAL); });
 		unary_test("signbit", [](half arg) -> bool { double f = arg; return isnan(arg) || f==0.0 || (signbit(arg)==(f<0.0)); });
-/*
+
 		//test operators
 		unary_test("prefix increment", [](half arg) -> bool { double f = static_cast<double>(arg); 
 			return comp(static_cast<half>(++f), ++arg) && comp(static_cast<half>(f), arg); });
@@ -197,9 +190,9 @@ public:
 		BINARY_MATH_TEST(fmod);
 		binary_test("fdim", [](half a, half b) -> bool { half c = fdim(a, b); return isnan(a) || isnan(b) || 
 			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, half_cast<half>(0.0))); });
-
+*/
 		//test exponential functions
-*/		UNARY_MATH_TEST(exp);
+		UNARY_MATH_TEST(exp);
 		UNARY_MATH_TEST(log);
 		UNARY_MATH_TEST(log10);
 /*
@@ -224,13 +217,13 @@ public:
 		//test round functions
 		UNARY_MATH_TEST(ceil);
 		UNARY_MATH_TEST(floor);
-		unary_test("trunc", [](half arg) { return !isfinite(arg) || comp(trunc(arg), static_cast<half>(static_cast<int>(arg))); });
+		unary_test("trunc", [](half arg) { return !isfinite(arg) || comp(trunc(arg), half_cast<half>(static_cast<int>(arg))); });
 		unary_test("round", [](half arg) { return !isfinite(arg) || comp(round(arg), 
-			static_cast<half>(static_cast<int>(static_cast<double>(arg)+(signbit(arg) ? -0.5 : 0.5)))); });
+			half_cast<half>(static_cast<int>(static_cast<double>(arg)+(signbit(arg) ? -0.5 : 0.5)))); });
 		unary_test("lround", [](half arg) { return !isfinite(arg) || lround(arg) == 
 			static_cast<long>(static_cast<double>(arg)+(signbit(arg) ? -0.5 : 0.5)); });
-		unary_test("nearbyint", [](half arg) { return !isfinite(arg) || comp(nearbyint(arg), static_cast<half>(half_cast<int>(arg))); });
-		unary_test("rint", [](half arg) { return !isfinite(arg) || comp(rint(arg), static_cast<half>(half_cast<int>(arg))); });
+		unary_test("nearbyint", [](half arg) { return !isfinite(arg) || comp(nearbyint(arg), half_cast<half>(half_cast<int>(arg))); });
+		unary_test("rint", [](half arg) { return !isfinite(arg) || comp(rint(arg), half_cast<half>(half_cast<int>(arg))); });
 		unary_test("lrint", [](half arg) { return !isfinite(arg) || lrint(arg) == half_cast<long>(arg); });
 	#if HALF_ENABLE_CPP11_LONG_LONG
 		unary_test("llround", [](half arg) { return !isfinite(arg) || llround(arg) == 
@@ -263,16 +256,16 @@ public:
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
-
+*/
 		//test exponential functions
-*/		UNARY_MATH_TEST(exp2);
+		UNARY_MATH_TEST(exp2);
 		UNARY_MATH_TEST(expm1);
 		UNARY_MATH_TEST(log1p);
 		UNARY_MATH_TEST(log2);
 /*
 		//test power functions
-		UNARY_MATH_TEST(cbrt);
-		BINARY_MATH_TEST(hypot);
+*/		UNARY_MATH_TEST(cbrt);
+/*		BINARY_MATH_TEST(hypot);
 
 		//test hyp functions
 		UNARY_MATH_TEST(asinh);
@@ -557,12 +550,14 @@ private:
 	{
 		unsigned long tests = 0, count = 0, step = fast_ ? 64 : 1;
 		auto rand = std::bind(std::uniform_int_distribution<std::uint16_t>(0, step-1), std::default_random_engine());
+		std::set<std::string> failed_tests;
 		log_ << "testing " << name << ": ";
 		for(auto iterB1=halfs_.begin(); iterB1!=halfs_.end(); ++iterB1)
 		{
 			unsigned int end1 = (iterB1->first.find("NaN")==std::string::npos) ? iterB1->second.size() : 1;
 			for(auto iterB2=halfs_.begin(); iterB2!=halfs_.end(); ++iterB2)
 			{
+				bool failed = false;
 				unsigned int end2 = (iterB2->first.find("NaN")==std::string::npos) ? iterB2->second.size() : 1;
 				for(unsigned int i=0; i<end1; i+=step)
 				{
@@ -574,10 +569,16 @@ private:
 						half b = iterB2->second[j];
 						if(fast_ && end2 >= step)
 							b = b2h(h2b(b)|rand());
-						count += test(a, b);
+						bool success = test(a, b);
+						count += success;
+						failed = failed || !success;
 						++tests;
 					}
 				}
+				if(!fast_)
+					std::cout << iterB1->first << " x " << iterB2->first << "done\n";
+				if(failed)
+					failed_tests.insert(iterB1->first+" x "+iterB2->first);
 			}
 		}
 		bool passed = count == tests;
@@ -585,7 +586,10 @@ private:
 			log_ << "all passed\n\n";
 		else
 		{
-			log_ << (tests-count) << " of " << tests << " FAILED\n\n";
+			log_ << (tests-count) << " of " << tests << " FAILED\n";
+			for(auto &&s : failed_tests)
+				log_ << s << " FAILED\n";
+			log_ << '\n';
 			failed_.push_back(name);
 		}
 		++tests_;
@@ -594,9 +598,9 @@ private:
 
 	template<typename F> bool ternary_test(const std::string &name, F test)
 	{
-		static const unsigned int step = fast_ ? 256 : 1;
+		unsigned int tests = 0, count = 0, step = fast_ ? 512 : 1;
 		auto rand = std::bind(std::uniform_int_distribution<std::uint16_t>(0, step-1), std::default_random_engine());
-		unsigned int tests = 0, count = 0;
+		std::set<std::string> failed;
 		log_ << "testing " << name << ": ";
 		for(auto iterB1=halfs_.begin(); iterB1!=halfs_.end(); ++iterB1)
 		{
@@ -606,6 +610,7 @@ private:
 				unsigned int end2 = (iterB2->first.find("NaN")==std::string::npos) ? iterB2->second.size() : 1;
 				for(auto iterB3=halfs_.begin(); iterB3!=halfs_.end(); ++iterB3)
 				{
+					bool failed = false;
 					unsigned int end3 = (iterB3->first.find("NaN")==std::string::npos) ? iterB3->second.size() : 1;
 					for(unsigned int i=0; i<end1; i+=step)
 					{
@@ -622,11 +627,15 @@ private:
 								half c = iterB3->second[k];
 								if(fast_ && end3 >= step)
 									c = b2h(h2b(c)|rand());
-								count += test(a, b, c);
+								bool success = test(a, b, c);
+								count += success;
+								failed = failed || !success;
 								++tests;
 							}
 						}
 					}
+					if(failed)
+						failed.insert(iterB1->first+" x "+iterB2->first+" x "+iterB3->first);
 				}
 			}
 		}
@@ -636,6 +645,9 @@ private:
 		else
 		{
 			log_ << (tests-count) << " of " << tests << " failed\n\n";
+			for(auto &&s : failed)
+				log_ << s << " FAILED\n";
+			log_ << '\n';
 			failed_.push_back(name);
 		}
 		++tests_;
@@ -708,6 +720,15 @@ private:
 
 int main(int argc, char *argv[])
 {
+	switch(std::numeric_limits<half>::round_style)
+	{
+	case std::round_indeterminate: std::fesetround(FE_TOWARDZERO); break;
+	case std::round_to_nearest: std::fesetround(FE_TONEAREST); break;
+	case std::round_toward_zero: std::fesetround(FE_TOWARDZERO); break;
+	case std::round_toward_infinity: std::fesetround(FE_UPWARD); break;
+	case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
+	}
+
 /*	unsigned int sum = 0;
 	int q = 0;
 	{
@@ -763,6 +784,10 @@ int main(int argc, char *argv[])
 	std::ofstream out("logs.txt");
 	for(auto val : logs)
 		out << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << static_cast<unsigned long>(std::floor(std::ldexp(val, 27))) << ", \n";
+	return 0;
+
+	using namespace half_float::literal;
+	std::cout << (1.0l/3.0l) << " = 0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(1.0l/3.0l, 17)) << ", \n";
 	return 0;
 */
 	std::vector<std::string> args(argv, argv+argc);

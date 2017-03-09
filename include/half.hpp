@@ -1086,7 +1086,7 @@ namespace half_float
 		{
 			#if HALF_ENABLE_CPP11_LONG_LONG
 				unsigned long long xx = static_cast<unsigned long long>(x) << 32;
-				return s = xx%y!=0, xx/y;
+				return s = xx%y != 0, xx / y;
 			#else
 				y >>= 1;
 				unsigned long rem = x, div = 0;
@@ -1100,11 +1100,31 @@ namespace half_float
 					}
 					rem <<= 1;
 				}
-				return s = rem>1, div;
+				return s = rem > 1, div;
+			#endif
+		}
+
+		/// 64bit multiplication.
+		/// \param x upper 32bit of dividend
+		/// \param y divisor
+		/// \return \a x * \a y rounded to nearest
+		inline unsigned long multiply64(unsigned long x, unsigned long y)
+		{
+			#if HALF_ENABLE_CPP11_LONG_LONG
+				unsigned long long m = static_cast<unsigned long long>(x) * static_cast<unsigned long long>(y);
+				return static_cast<unsigned long>(m>>32) + ((static_cast<unsigned long>(m)>>31)&1);
+			#else
+				unsigned long xyh = (x>>16) * (y>>16);
+				unsigned long xym = (x>>16) * (y&0xFFFF);
+				unsigned long yxm = (x&0xFFFF) * (y>>16);
+				unsigned long xyl = (x&0xFFFF) * (y&0xFFFF);
+				unsigned long c = (xym&0xFFFF) + (yxm&0xFFFF) + (xyl>>16);
+				return xyh + (xym>>16) + (yxm>>16) + (c>>16) + ((c>>15)&1);
 			#endif
 		}
 
 		/// Fixed point binary exponential.
+		/// This uses the BKM algorithm in E-mode.
 		/// \tparam N number of iterations
 		/// \param arg exponent as Q0.31
 		/// \return 2 ^ \a arg as Q1.31
@@ -1146,9 +1166,8 @@ namespace half_float
 		/// \param exp exponent
 		/// \param sign sign bit
 		/// \return value converted to half precision
-		inline uint16 exp2_post_Q31(unsigned long m, int exp, bool sign)
+		inline uint16 exp2_post_Q31(unsigned long m, int exp, bool sign, uint16 value = 0)
 		{
-			uint16 value;
 			int s, g;
 			if(sign)
 			{
@@ -1163,29 +1182,34 @@ namespace half_float
 				{
 					g = (m>>20) & 1;
 					s |= (m&0xFFFFF) != 0;
-					value = ((14-exp)<<10) + (m>>21);
+					value |= ((14-exp)<<10) + (m>>21);
 				}
 				else if(exp < 25)
 				{
 					int i = 6 + exp;
 					g = (m>>i) & 1;
 					s |= (m&((1UL<<i)-1)) != 0;
-					value = m >> (i+1);
+					value |= m >> (i+1);
 				}
 				else
 				{
 					g = exp == 25;
 					s |= (1-g) | ((m&0x7FFFFFFF)!=0);
-					value = 0;
 				}
 			}
 			else
 			{
 				if(exp > 15)
-					return 0x7BFF + ((HALF_ROUND_STYLE)!=std::round_toward_zero && (HALF_ROUND_STYLE)!=std::round_toward_neg_infinity);
+				{
+					if((HALF_ROUND_STYLE) == std::round_toward_infinity)
+						return value | 0x7C00 - (value>>15);
+					else if((HALF_ROUND_STYLE) == std::round_toward_neg_infinity)
+						return value | 0x7BFF + (value>>15);
+					return value | 0x7BFF + ((HALF_ROUND_STYLE)!=std::round_toward_zero);
+				}
 				g = (m>>20) & 1;
 				s = (m&0xFFFFF) != 0;
-				value = ((exp+14)<<10) + (m>>21);
+				value |= ((exp+14)<<10) + (m>>21);
 			}
 			if((HALF_ROUND_STYLE) == std::round_to_nearest)
 				#if HALF_ROUND_TIES_TO_EVEN
@@ -1194,11 +1218,14 @@ namespace half_float
 					value += g;
 				#endif
 			else if((HALF_ROUND_STYLE) == std::round_toward_infinity)
-				value += g | s;
+				value += ~(value>>15) & (g|s);
+			else if((HALF_ROUND_STYLE) == std::round_toward_neg_infinity)
+				value += (value>>15) & (g|s);
 			return value;
 		}
 
 		/// Fixed point binary logarithm.
+		/// This uses the BKM algorithm in L-mode.
 		/// \tparam N number of iterations
 		/// \param m mantissa as Q1.30
 		/// \param exp exponent
@@ -1220,7 +1247,7 @@ namespace half_float
 				0x000B84E3, 0x0005C3E1, 0x0002E24D, 0x0001713E, 0x0000B8A5, 0x00005C54, 0x00002E2B, 0x00001716,
 				0x00000B8B, 0x000005C6, 0x000002E3, 0x00000172, 0x000000B9, 0x0000005D, 0x0000002F, 0x00000018,
 				0x0000000C, 0x00000006, 0x00000003, 0x00000002, 0x00000001, 0x00000001, 0x00000001, 0x00000001 };
-*/			unsigned long mx = 1UL << 30, my = 0;
+*/			unsigned long mx = 0x40000000UL, my = 0;
 			if(m != mx)
 			{
 				for(unsigned int i=1; i<N; ++i)
@@ -1342,41 +1369,24 @@ namespace half_float
 			return value;
 		}
 
-		inline bool is_odd(uint16 value)
-		{
-			if(value >= 0x7C00 || value < 0x3C00)
-				return false;
-			unsigned int m = (value&0x3FF) | 0x400;
-			int e = value >> 10;
-			if(e < 25)
-			{
-				if(m & ((1<<(25-e))-1))
-					return false;
-				m >>= 25 - e;
-			}
-			else
-				m <<= e - 25;
-			return m & 1;
-		}
-
-		inline bool is_integer(uint16 value, int &ival, bool &odd)
+		inline bool is_integer(uint16 value, bool &odd)
 		{
 			unsigned int e = value & 0x7FFF;
 			if(e >= 0x7C00)
 				return odd = false, false;
 			if(e < 0x3C00)
-				return ival = 0, odd = false, !e;
+				return odd = false, !e;
 			unsigned int m = (value&0x3FF) | 0x400;
 			e >>= 10;
-			if(e < 25)
+			if(e <= 25)
 			{
 				if(m & ((1<<(25-e))-1))
 					return odd = false, false;
-				m >>= 25 - e;
+				odd = (m>>(25-e)) & 1;
 			}
 			else
-				m <<= e - 25;
-			return ival = (value&0x8000) ? -static_cast<int>(m) : static_cast<int>(m), odd = m & 1, true;
+				odd = false;
+			return true;
 		}
 
 		inline uint16 fixed2half(unsigned long m)
@@ -1521,7 +1531,6 @@ namespace half_float
 		friend half hypot(half, half);
 		friend half hypot(half, half, half);
 		friend half pow(half, half);
-		friend half pow(half, int);
 		friend std::pair<half,half> sincos(half);
 		friend half sin(half);
 		friend half cos(half);
@@ -1928,7 +1937,7 @@ namespace half_float
 		if(absy == 0x7C00)
 			return y;
 		if(!absx)
-			return y;
+			return absy ? y : half(detail::binary, (half::round_style==std::round_toward_neg_infinity) ? (x.data_|y.data_) : (x.data_&y.data_));
 		if(!absy)
 			return x;
 		detail::uint16 value = ((sub && absy>absx) ? y.data_ : x.data_) & 0x8000;
@@ -2231,7 +2240,7 @@ namespace half_float
 		if(absy == 0x7C00)
 			return half(detail::binary, (!absx || (sub && absz==0x7C00)) ? 0x7FFF : (value|0x7C00));
 		if(absz == 0x7C00 || !absx || !absy)
-			return z;
+			return absz ? z : half(detail::binary, (half::round_style==std::round_toward_neg_infinity) ? (z.data_|value) : (z.data_&value));
 		for(; absx<0x400; absx<<=1,--exp) ;
 		for(; absy<0x400; absy<<=1,--exp) ;
 		long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
@@ -2324,6 +2333,8 @@ namespace half_float
 			return y;
 		if(absy > 0x7C00)
 			return x;
+		if(!(absx|absy))
+			return x.data_ < y.data_ ? x : y;
 		return (((absx==x.data_) ? absx : -absx) < ((absy==y.data_) ? absy : -absy)) ? y : x;
 	}
 
@@ -2338,6 +2349,8 @@ namespace half_float
 			return y;
 		if(absy > 0x7C00)
 			return x;
+		if(!(absx|absy))
+			return x.data_ < y.data_ ? y : x;
 		return (((absx==x.data_) ? absx : -absx) > ((absy==y.data_) ? absy : -absy)) ? y : x;
 	}
 
@@ -2464,7 +2477,7 @@ namespace half_float
 		if(!abs)
 			return half(detail::binary, 0x3C00);
 		unsigned long m;
-		int e = (abs>>10) + (abs<=0x3FF), exp = (abs&0x3FF) + ((abs>0x3FF)<<10), g, s;
+		int e = (abs>>10) + (abs<=0x3FF), exp = (abs&0x3FF) + ((abs>0x3FF)<<10);
 		if(e < 25)
 		{
 			m = (static_cast<unsigned long>(exp)<<(6+e)) & 0x7FFFFFFF;
@@ -2574,7 +2587,7 @@ namespace half_float
 			return arg;
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
-		unsigned long m = detail::log2_Q27<28>(((abs&0x3FF)|0x400UL)<<20, ilog);
+		unsigned long m = detail::log2_Q27<32>(((abs&0x3FF)|0x400UL)<<20, ilog);
 		int exp = 14, s = 0;
 		for(; m<0x8000000 && exp; m<<=1,--exp) ;
 		for(; m>0xFFFFFFF; m>>=1,++exp)
@@ -2604,8 +2617,8 @@ namespace half_float
 	/// \return square root of \a arg
 	inline half sqrt(half arg)
 	{
-		if(arg.data_ & 0x8000 && arg.data_ != 0x8000)
-			arg.data_ |= 0x7FFF;
+		if(arg.data_ & 0x8000)
+			arg.data_ |= 0x8000 - static_cast<unsigned>(arg.data_!=0x8000);
 		int abs = arg.data_ & 0x7FFF, exp = 15;
 		if(!abs || abs >= 0x7C00)
 			return arg;
@@ -2636,45 +2649,28 @@ namespace half_float
 	/// \return cubic root of \a arg
 	inline half cbrt(half arg)
 	{
-/*	#if HALF_ENABLE_CPP11_CMATH
-		return half(std::cbrt(static_cast<float>(arg)));
-	#else
-		int abs = arg.data_ & 0x7FFF;
-		if(!abs || abs >= 0x7C00)
+		int abs = arg.data_ & 0x7FFF, ilog = -15, exp = 2, s, g;
+		if(!abs || abs >= 0x7C00 || abs == 0x3C00)
 			return arg;
-		return half((arg.data_&0x8000) ? -static_cast<float>(std::pow(-static_cast<double>(arg), 1.0/3.0)) : 
-			static_cast<float>(std::pow(static_cast<double>(arg), 1.0/3.0)));
-	#endif
-*/		int abs = arg.data_ & 0x7FFF, exp = -15;
-		if(!abs || abs >= 0x7C00)
-			return arg;
-		detail::uint16 sign = arg.data_ & 0x8000;
-
-		for(; abs<0x400; abs<<=1,--exp) ;
-		exp += abs >> 10;
-		int exp3 = exp / 3;
-/*
-		for(exp-=3*exp3; exp<0; exp+=3,--exp3) ;
-		arg.data_ = sign | ((exp+15)<<10) | (abs&0x3FF);
-		arg = std::cbrt(static_cast<float>(arg));
-		arg.data_ = (arg.data_-0x3C00) + ((exp3+15)<<10);
-*/
-		for(exp-=3*exp3; exp<0; exp+=3,--exp3) ;
-		float x = static_cast<float>(arg);
-		arg.data_ = ((exp3+15)<<10) | (abs&0x3FF);
-		float t = static_cast<float>(arg);
-		static const double C =  5.42857142857142815906e-01, D = -7.05306122448979611050e-01, E =  1.41428571428571436819e+00, F =  1.60714285714285720630e+00, G =  3.57142857142857150787e-01;
-		double r = t * t / x, s = C + r*t;
-		t *= G + F/(s+E+D/s);
-		s = t * t;
-		r = x / s;
-		double w = t + t;
-		r = (r-t) / (w+r);
-		t += t * r;
-		arg = t;
-		arg.data_ |= sign;
-
-		return arg;
+		for(; abs<0x400; abs<<=1, --ilog);
+		ilog += abs >> 10;
+		unsigned long m = detail::log2_Q27<29>(((abs&0x3FF)|0x400UL)<<20, ilog), f;
+		for(; m<0x80000000UL; m<<=1,--exp) ;
+		m = detail::multiply64(m, 0xAAAAAAABULL);
+		int i = m > 0x7FFFFFFF;
+		exp += i;
+		m <<= 1 - i;
+		if(exp < 0)
+		{
+			f = m >> -exp;
+			exp = 0;
+		}
+		else
+		{
+			f = (m<<exp) & 0x7FFFFFFF;
+			exp = m >> (31-exp);
+		}
+		return half(detail::binary, detail::exp2_post_Q31(detail::exp2_Q31<29>(f), exp, ilog<0, arg.data_&0x8000));
 	}
 
 	/// Hypotenuse function.
@@ -2704,10 +2700,10 @@ namespace half_float
 		int ix = mx >> 21, iy = my >> 21;
 		expx = 2*(expx+(absx>>10)) - 15 + ix;
 		expy = 2*(expy+(absy>>10)) - 15 + iy;
-		mx <<= 10 - ix;										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+8
-		my <<= 10 - iy;										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+8
+		mx <<= 10 - ix;
+		my <<= 10 - iy;
 		int d = expx - expy;
-		my = (d<30) ? ((my>>d)|((my&((1L<<d)-1))!=0)) : 1;	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+8
+		my = (d<30) ? ((my>>d)|((my&((1L<<d)-1))!=0)) : 1;
 		return half(detail::binary, detail::hypot_sqrt<8>(mx+my, expx));
 	}
 
@@ -2750,67 +2746,66 @@ namespace half_float
 		expx = 2*(expx+(absx>>10)) - 15 + ix;
 		expy = 2*(expy+(absy>>10)) - 15 + iy;
 		expz = 2*(expz+(absz>>10)) - 15 + iz;
-		mx <<= 10 - ix;										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+8
-		my <<= 10 - iy;										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+8
-		mz <<= 10 - iz;										//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+8
+		mx <<= 10 - ix;
+		my <<= 10 - iy;
+		mz <<= 10 - iz;
 		int d = expy - expz;
-		mz = (d<30) ? ((mz>>d)|((mz&((1L<<d)-1))!=0)) : 1;	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+8
+		mz = (d<30) ? ((mz>>d)|((mz&((1L<<d)-1))!=0)) : 1;
 		my += mz;
-		if(my > 0x7FFFFFFF)									//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+FF
+		if(my > 0x7FFFFFFF)
 		{
 			my = (my>>1) | (my&1);
 			++expy;
 		}
 		d = expx - expy;
-		my = (d<30) ? ((my>>d)|((my&((1L<<d)-1))!=0)) : 1;	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!	+8
+		my = (d<30) ? ((my>>d)|((my&((1L<<d)-1))!=0)) : 1;
 		return half(detail::binary, detail::hypot_sqrt<8>(mx+my, expx));
 	}
 
 	/// Power function.
-	/// \param base first argument
-	/// \param exp second argument
-	/// \return \a base raised to \a exp
-	inline half pow(half base, half exp)
+	/// \param x base
+	/// \param y exponent
+	/// \return \a x raised to \a y
+	inline half pow(half x, half y)
 	{
-		int absx = base.data_ & 0x7FFF, absy = exp.data_ & 0x7FFF, iexp;
-		if(!absy)
+		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+		if(!absy || x.data_ == 0x3C00)
 			return half(detail::binary, 0x3C00);
 		if(absx > 0x7C00)
-			return base;
-		if(base.data_ == 0x3C00)
-			return base;
+			return x;
 		if(absy > 0x7C00)
-			return exp;
+			return y;
 		if(absy == 0x7C00)
-			return half(detail::binary, (absx==0x3C00) ? 0x3C00 : (0x7C00&-((exp.data_>>15)^(absx>0x3C00))));
-		bool is_odd, is_int = detail::is_integer(absy, iexp, is_odd);
+			return half(detail::binary, (absx==0x3C00) ? 0x3C00 : (0x7C00&-((y.data_>>15)^(absx>0x3C00))));
+		bool is_odd, is_int = detail::is_integer(absy, is_odd);
 		if(absx == 0x7C00)
-			return half(detail::binary, ((static_cast<unsigned>(is_odd)<<15)&base.data_)|(0x7C00&((exp.data_>>15)-1U)));
+			return half(detail::binary, ((static_cast<unsigned>(is_odd)<<15)&x.data_)|(0x7C00&((y.data_>>15)-1U)));
 		if(!absx)
-			return half(detail::binary, ((static_cast<unsigned>(is_odd)<<15)&base.data_)|(0x7C00&-(exp.data_>>15)));
-		if((absx&0x8000) && !is_int)
+			return half(detail::binary, ((static_cast<unsigned>(is_odd)<<15)&x.data_)|(0x7C00&-(y.data_>>15)));
+		detail::uint16 value = x.data_ & 0x8000;
+		if(value && !is_int)
 			return half(detail::binary, 0x7FFF);
-		return half(std::pow(static_cast<float>(base), static_cast<float>(exp)));
-	}
-
-	/// Power function.
-	/// \param base first argument
-	/// \param exp second argument
-	/// \return \a base raised to \a exp
-	inline half pow(half base, int exp)
-	{
-		int abs = base.data_ & 0x7FFF;
-		if(!exp)
-			return half(detail::binary, 0x3C00);
-		if(abs > 0x7C00)
-			return base;
-		if(base.data_ == 0x3C00)
-			return base;
-		if(abs == 0x7C00)
-			return half(detail::binary, (((std::abs(exp)&1U)<<15)&base.data_)|(0x7C00&-static_cast<unsigned>(exp>0)));
-		if(!abs)
-			return half(detail::binary, (((std::abs(exp)&1U)<<15)&base.data_)|(0x7C00&-static_cast<unsigned>(exp<0)));
-		return half(std::pow(static_cast<float>(base), exp));
+		int ilog = -15, exp = -11, s, g;
+		for(; absx<0x400; absx<<=1,--ilog) ;
+		for(; absy<0x400; absy<<=1,--exp) ;
+		ilog += absx >> 10;
+		unsigned long m = detail::log2_Q27<28>(((absx&0x3FF)|0x400UL)<<20, ilog), f;
+		for(; m<0x80000000UL; m<<=1,--exp) ;
+		m = detail::multiply64(m, ((absy&0x3FF)|0x400)<<21);
+		int i = m > 0x7FFFFFFF;
+		exp += (absy>>10) + i;
+		m <<= 1 - i;
+		if(exp < 0)
+		{
+			f = m >> -exp;
+			exp = 0;
+		}
+		else
+		{
+			f = (m<<exp) & 0x7FFFFFFF;
+			exp = m >> (31-exp);
+		}
+		return half(detail::binary, detail::exp2_post_Q31(detail::exp2_Q31<28>(f), exp, (ilog<0)^(y.data_>>15), value&(static_cast<unsigned>(is_odd)<<15)));
 	}
 
 	/// \}
