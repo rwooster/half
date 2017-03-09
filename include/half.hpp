@@ -215,15 +215,6 @@
 	#define HALF_ROUND_STYLE	-1			// = std::round_indeterminate
 #endif
 
-/// Tie-breaking behaviour for round to nearest.
-/// This specifies if ties in round to nearest should be resolved by rounding to the nearest even value. By default this is 
-/// defined to `0` resulting in the faster but slightly more biased behaviour of rounding away from zero in half-way cases (and 
-/// thus equal to the round() function), but can be redefined to `1` (before including half.hpp) if more IEEE-conformant 
-/// behaviour is needed.
-#ifndef HALF_ROUND_TIES_TO_EVEN
-	#define HALF_ROUND_TIES_TO_EVEN	0		// ties away from zero
-#endif
-
 /// Value signaling overflow.
 /// In correspondence with `HUGE_VAL[F|L]` from `<cmath>` this symbol expands to a positive value signaling the overflow of an 
 /// operation, in particular it just evaluates to positive infinity.
@@ -398,7 +389,7 @@ namespace half_float
 		}
 
 		/// \}
-		/// \name Conversion
+		/// \name Conversion and Rounding
 		/// \{
 
 		/// Convert IEEE single-precision to half-precision.
@@ -445,13 +436,9 @@ namespace half_float
 				s = bits != 0;
 			}
 			if(R == std::round_to_nearest)
-				#if HALF_ROUND_TIES_TO_EVEN
-					hbits += g & (s|hbits);
-				#else
-					hbits += g;
-				#endif
+				hbits += g & (s|hbits);
 			else if(R == std::round_toward_infinity)
-				hbits += ~(hbits>>15) & (s|g);
+				hbits += ~(hbits>>15) & (g|s);
 			else if(R == std::round_toward_neg_infinity)
 				hbits += (hbits>>15) & (g|s);
 */			static const uint16 base_table[512] = { 
@@ -506,11 +493,8 @@ namespace half_float
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 13 };
 			uint16 hbits = base_table[bits>>23] + static_cast<uint16>((bits&0x7FFFFF)>>shift_table[bits>>23]);
 			if(R == std::round_to_nearest)
-				hbits += (((bits&0x7FFFFF)>>(shift_table[bits>>23]-1))|(((bits>>23)&0xFF)==102)) & ((hbits&0x7C00)!=0x7C00)
-				#if HALF_ROUND_TIES_TO_EVEN
-					& (((((static_cast<uint32>(1)<<(shift_table[bits>>23]-1))-1)&bits)!=0)|hbits)
-				#endif
-				;
+				hbits += (((bits&0x7FFFFF)>>(shift_table[bits>>23]-1))|(((bits>>23)&0xFF)==102)) & ((hbits&0x7C00)!=0x7C00) & 
+					(((((static_cast<uint32>(1)<<(shift_table[bits>>23]-1))-1)&bits)!=0)|hbits);
 			else if(R == std::round_toward_zero)
 				hbits -= ((hbits&0x7FFF)==0x7C00) & ~shift_table[bits>>23];
 			else if(R == std::round_toward_infinity)
@@ -567,13 +551,9 @@ namespace half_float
 				s |= hi != 0;
 			}
 			if(R == std::round_to_nearest)
-				#if HALF_ROUND_TIES_TO_EVEN
-					hbits += g & (s|hbits);
-				#else
-					hbits += g;
-				#endif
+				hbits += g & (s|hbits);
 			else if(R == std::round_toward_infinity)
-				hbits += ~(hbits>>15) & (s|g);
+				hbits += ~(hbits>>15) & (g|s);
 			else if(R == std::round_toward_neg_infinity)
 				hbits += (hbits>>15) & (g|s);
 			return hbits;
@@ -615,11 +595,7 @@ namespace half_float
 			if(R == std::round_to_nearest)
 			{
 				frac = std::abs(frac);
-				#if HALF_ROUND_TIES_TO_EVEN
-					hbits += (frac>T(0.5)) | ((frac==T(0.5))&hbits);
-				#else
-					hbits += frac >= T(0.5);
-				#endif
+				hbits += (frac>T(0.5)) | ((frac==T(0.5))&hbits);
 			}
 			else if(R == std::round_toward_infinity)
 				hbits += frac > T();
@@ -670,11 +646,7 @@ namespace half_float
 				if(exp > 24)
 				{
 					if(R == std::round_to_nearest)
-						bits += (value>>(exp-25)) & 1
-						#if HALF_ROUND_TIES_TO_EVEN
-							& (((((1<<(exp-25))-1)&value)!=0)|bits)
-						#endif
-						;
+						bits += (value>>(exp-25)) & (((((1<<(exp-25))-1)&value)!=0)|bits) & 1;
 					else if(R == std::round_toward_infinity)
 						bits += ((value&((1<<(exp-24))-1))!=0) & !S;
 					else if(R == std::round_toward_neg_infinity)
@@ -947,13 +919,13 @@ namespace half_float
 		/// \tparam T type to convert to (buitlin integer type with at least 16 bits precision, excluding any implicit sign bits)
 		/// \param value binary representation of half-precision value
 		/// \return integral value
-		template<std::float_round_style R,typename T> T half2int(uint16 value) { return half2int_impl<R,HALF_ROUND_TIES_TO_EVEN,T>(value); }
+		template<std::float_round_style R,typename T> T half2int(uint16 value) { return half2int_impl<R,true,T>(value); }
 
 		/// Convert half-precision floating point to integer using round-to-nearest-away-from-zero.
 		/// \tparam T type to convert to (buitlin integer type with at least 16 bits precision, excluding any implicit sign bits)
 		/// \param value binary representation of half-precision value
 		/// \return integral value
-		template<typename T> T half2int_up(uint16 value) { return half2int_impl<std::round_to_nearest,0,T>(value); }
+		template<typename T> T half2int_up(uint16 value) { return half2int_impl<std::round_to_nearest,false,T>(value); }
 
 		/// Round half-precision number to nearest integer value.
 		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
@@ -993,12 +965,44 @@ namespace half_float
 		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
 		/// \param value binary representation of half-precision value
 		/// \return half-precision bits for nearest integral value
-		template<std::float_round_style R> uint16 round_half(uint16 value) { return round_half_impl<R,HALF_ROUND_TIES_TO_EVEN>(value); }
+		template<std::float_round_style R> uint16 round_half(uint16 value) { return round_half_impl<R,true>(value); }
 
 		/// Round half-precision number to nearest integer value using round-to-nearest-away-from-zero.
 		/// \param value binary representation of half-precision value
 		/// \return half-precision bits for nearest integral value
-		inline uint16 round_half_up(uint16 value) { return round_half_impl<std::round_to_nearest,0>(value); }
+		inline uint16 round_half_up(uint16 value) { return round_half_impl<std::round_to_nearest,false>(value); }
+
+		template<std::float_round_style R> uint16 overflow(uint16 value)
+		{
+			if(R == std::round_toward_infinity)
+				return value | 0x7C00 - (value>>15);
+			else if(R == std::round_toward_neg_infinity)
+				return value | 0x7BFF + (value>>15);
+			else
+				return value | 0x7BFF + (R!=std::round_toward_zero);
+		}
+
+		template<std::float_round_style R> uint16 underflow(uint16 value)
+		{
+			if(R == std::round_toward_infinity)
+				return value - ((value>>15)-1);
+			else if(R == std::round_toward_neg_infinity)
+				return value + (value>>15);
+			else
+				return value;
+		}
+
+		template<std::float_round_style R> uint16 rounded(uint16 value, int g, int s)
+		{
+			if(R == std::round_to_nearest)
+				return value + (g&(s|value));
+			else if(R == std::round_toward_infinity)
+				return value + (~(value>>15)&(g|s));
+			else if(R == std::round_toward_neg_infinity)
+				return value + ((value>>15)&(g|s));
+			else
+				return value;
+		}
 
 		/// \}
 		/// \name Mathematics
@@ -1200,28 +1204,12 @@ namespace half_float
 			else
 			{
 				if(exp > 15)
-				{
-					if((HALF_ROUND_STYLE) == std::round_toward_infinity)
-						return value | 0x7C00 - (value>>15);
-					else if((HALF_ROUND_STYLE) == std::round_toward_neg_infinity)
-						return value | 0x7BFF + (value>>15);
-					return value | 0x7BFF + ((HALF_ROUND_STYLE)!=std::round_toward_zero);
-				}
+					return overflow<(std::float_round_style)(HALF_ROUND_STYLE)>(value);
 				g = (m>>20) & 1;
 				s = (m&0xFFFFF) != 0;
 				value |= ((exp+14)<<10) + (m>>21);
 			}
-			if((HALF_ROUND_STYLE) == std::round_to_nearest)
-				#if HALF_ROUND_TIES_TO_EVEN
-					value += g & (s|value);
-				#else
-					value += g;
-				#endif
-			else if((HALF_ROUND_STYLE) == std::round_toward_infinity)
-				value += ~(value>>15) & (g|s);
-			else if((HALF_ROUND_STYLE) == std::round_toward_neg_infinity)
-				value += (value>>15) & (g|s);
-			return value;
+			return rounded<(std::float_round_style)(HALF_ROUND_STYLE)>(value, g, s);
 		}
 
 		/// Fixed point binary logarithm.
@@ -1295,22 +1283,9 @@ namespace half_float
 					g = (m>>i) & 1;
 					value |= m >> (i+1);
 				}
-				if((HALF_ROUND_STYLE) == std::round_to_nearest)
-					#if HALF_ROUND_TIES_TO_EVEN
-						value += g & (s|value);
-					#else
-						value += g;
-					#endif
-				else if((HALF_ROUND_STYLE) == std::round_toward_infinity)
-					value += ~(value>>15) & (g|s);
-				else if((HALF_ROUND_STYLE) == std::round_toward_neg_infinity)
-					value += (value>>15) & (g|s);
+				return rounded<(std::float_round_style)(HALF_ROUND_STYLE)>(value, g, s);
 			}
-			else if((HALF_ROUND_STYLE) == std::round_toward_infinity)
-				value -= (value>>15) - 1;
-			else if((HALF_ROUND_STYLE) == std::round_toward_neg_infinity)
-				value += value >> 15;
-			return value;
+			return underflow<(std::float_round_style)(HALF_ROUND_STYLE)>(value);
 		}
 
 		/// Hypotenuse square root and postprocessing.
@@ -1359,11 +1334,7 @@ namespace half_float
 				value = m >> (i+1);
 			}
 			if((HALF_ROUND_STYLE) == std::round_to_nearest)
-				#if HALF_ROUND_TIES_TO_EVEN
-					value += g & (s|value);
-				#else
-					value += g;
-				#endif
+				value += g & (s|value);
 			else if((HALF_ROUND_STYLE) == std::round_toward_infinity)
 				value += g | s;
 			return value;
@@ -1397,18 +1368,7 @@ namespace half_float
 			for(; m<0x40000000 && exp>1; m<<=1, --exp);
 			int s = (m&0x7FFFF) != 0, g = (m>>19) & 1;
 			uint16 value = (sign&0x8000) | ((exp-1)<<10) + (m>>20);
-			#if HALF_ROUND_STYLE == 1
-				#if HALF_ROUND_TIES_TO_EVEN
-					value += g & (s|value);
-				#else
-					value += g;
-				#endif
-			#elif HALF_ROUND_STYLE == 2
-				value += ~(value>>15) & (g|s);
-			#elif HALF_ROUND_STYLE == 3
-				value += (value>>15) & (g|s);
-			#endif
-			return value;
+			return rounded<(std::float_round_style)(HALF_ROUND_STYLE)>(value, g, s);
 		}
 
 		/// Sine cosine function.
@@ -1965,31 +1925,12 @@ namespace half_float
 			if(m > 0x3FFF)
 			{
 				if(++exp > 30)
-				{
-					if(half::round_style == std::round_toward_infinity)
-						return half(detail::binary, value|0x7C00-(value>>15));
-					else if(half::round_style == std::round_toward_neg_infinity)
-						return half(detail::binary, value|0x7BFF+(value>>15));
-					return half(detail::binary, value|0x7BFF+(half::round_style!=std::round_toward_zero));
-				}
+					return half(detail::binary, detail::overflow<half::round_style>(value));
 				s = m & 1;
 				m >>= 1;
 			}
 		}
-		s |= (m&0x3) != 0;
-		int g = (m>>2) & 1;
-		value |= ((exp-1)<<10) + (m>>3);
-		if(half::round_style == std::round_to_nearest)
-			#if HALF_ROUND_TIES_TO_EVEN
-				value += g & (s|value);
-			#else
-				value += g;
-			#endif
-		else if(half::round_style == std::round_toward_infinity)
-			value += ~(value>>15) & (g|s);
-		else if(half::round_style == std::round_toward_neg_infinity)
-			value += (value>>15) & (g|s);
-		return half(detail::binary, value);
+		return half(detail::binary, detail::rounded<half::round_style>(value|((exp-1)<<10)+(m>>3), (m>>2)&1, s|((m&0x3)!=0)));
 	}
 
 	/// Subtract halfs.
@@ -2022,47 +1963,25 @@ namespace half_float
 		int i = m >> 21;
 		exp += (absx>>10) + (absy>>10) + i;
 		if(exp > 30)
+			return half(detail::binary, detail::overflow<half::round_style>(value));
+		else if(exp < -10)
+			return half(detail::binary, detail::underflow<half::round_style>(value));
+		int g, s = m & i;
+		m >>= i;
+		if(exp > 0)
 		{
-			if(half::round_style == std::round_toward_infinity)
-				value |= 0x7C00 - (value>>15);
-			else if(half::round_style == std::round_toward_neg_infinity)
-				value |= 0x7BFF + (value>>15);
-			else
-				value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
+			s |= (m&0x1FF) != 0;
+			g = (m>>9) & 1;
+			value |= (exp<<10) | ((m>>10)&0x3FF);
 		}
-		else if(exp > -11)
+		else
 		{
-			int g, s = m & i;
-			m >>= i;
-			if(exp > 0)
-			{
-				s |= (m&0x1FF) != 0;
-				g = (m>>9) & 1;
-				value |= (exp<<10) | ((m>>10)&0x3FF);
-			}
-			else
-			{
-				int i = 10 - exp;
-				s |= (m&((1L<<i)-1)) != 0;
-				g = (m>>i) & 1;
-				value |= m >> (i+1);
-			}
-			if(half::round_style == std::round_to_nearest)
-				#if HALF_ROUND_TIES_TO_EVEN
-					value += g & (s|value);
-				#else
-					value += g;
-				#endif
-			else if(half::round_style == std::round_toward_infinity)
-				value += ~(value>>15) & (g|s);
-			else if(half::round_style == std::round_toward_neg_infinity)
-				value += (value>>15) & (g|s);
+			int i = 10 - exp;
+			s |= (m&((1L<<i)-1)) != 0;
+			g = (m>>i) & 1;
+			value |= m >> (i+1);
 		}
-		else if(half::round_style == std::round_toward_infinity)
-			value -= (value>>15) - 1;
-		else if(half::round_style == std::round_toward_neg_infinity)
-			value += value >> 15;
-		return half(detail::binary, value);
+		return half(detail::binary, detail::rounded<half::round_style>(value, g, s));
 	}
 
 	/// Divide halfs.
@@ -2087,44 +2006,22 @@ namespace half_float
 		int i = mx < my;
 		exp += (absx>>10) - (absy>>10) - i;
 		if(exp > 30)
+			return half(detail::binary, detail::overflow<half::round_style>(value));
+		else if(exp < -10)
+			return half(detail::binary, detail::underflow<half::round_style>(value));
+		mx <<= 12 + i;
+		my <<= 1;
+		int m = mx / my, g = m & 1, s = mx%my != 0;
+		if(exp > 0)
+			value |= (exp<<10) | ((m>>1)&0x3FF);
+		else
 		{
-			if(half::round_style == std::round_toward_infinity)
-				value |= 0x7C00 - (value>>15);
-			else if(half::round_style == std::round_toward_neg_infinity)
-				value |= 0x7BFF + (value>>15);
-			else
-				value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
+			int i = 1 - exp;
+			s |= g | ((m&((1<<i)-1))!=0);
+			g = (m>>i) & 1;
+			value |= m >> (i+1);
 		}
-		else if(exp > -11)
-		{
-			mx <<= 12 + i;
-			my <<= 1;
-			int m = mx / my, g = m & 1, s = mx%my != 0;
-			if(exp > 0)
-				value |= (exp<<10) | ((m>>1)&0x3FF);
-			else
-			{
-				int i = 1 - exp;
-				s |= g | ((m&((1<<i)-1))!=0);
-				g = (m>>i) & 1;
-				value |= m >> (i+1);
-			}
-			if(half::round_style == std::round_to_nearest)
-				#if HALF_ROUND_TIES_TO_EVEN
-					value += g & (s|value);
-				#else
-					value += g;
-				#endif
-			else if(half::round_style == std::round_toward_infinity)
-				value += ~(value>>15) & (g|s);
-			else if(half::round_style == std::round_toward_neg_infinity)
-				value += (value>>15) & (g|s);
-		}
-		else if(half::round_style == std::round_toward_infinity)
-			value -= (value>>15) - 1;
-		else if(half::round_style == std::round_toward_neg_infinity)
-			value += value >> 15;
-		return half(detail::binary, value);
+		return half(detail::binary, detail::rounded<half::round_style>(value, g, s));
 	}
 
 	/// \}
@@ -2281,45 +2178,23 @@ namespace half_float
 			}
 		}
 		if(exp > 30)
+			return half(detail::binary, detail::overflow<half::round_style>(value));
+		else if(exp < -10)
+			return half(detail::binary, detail::underflow<half::round_style>(value));
+		if(exp > 0)
 		{
-			if(half::round_style == std::round_toward_infinity)
-				value |= 0x7C00 - (value>>15);
-			else if(half::round_style == std::round_toward_neg_infinity)
-				value |= 0x7BFF + (value>>15);
-			else
-				value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
+			s |= (m&0xFFF) != 0;
+			g = (m>>12) & 1;
+			value |= (exp<<10) | ((m>>13)&0x3FF);
 		}
-		else if(exp > -11)
+		else
 		{
-			if(exp > 0)
-			{
-				s |= (m&0xFFF) != 0;
-				g = (m>>12) & 1;
-				value |= (exp<<10) | ((m>>13)&0x3FF);
-			}
-			else
-			{
-				int i = 13 - exp;
-				s |= (m&((1L<<i)-1)) != 0;
-				g = (m>>i) & 1;
-				value |= m >> (i+1);
-			}
-			if(half::round_style == std::round_to_nearest)
-				#if HALF_ROUND_TIES_TO_EVEN
-					value += g & (s|value);
-				#else
-					value += g;
-				#endif
-			else if(half::round_style == std::round_toward_infinity)
-				value += ~(value>>15) & (g|s);
-			else if(half::round_style == std::round_toward_neg_infinity)
-				value += (value>>15) & (g|s);
+			int i = 13 - exp;
+			s |= (m&((1L<<i)-1)) != 0;
+			g = (m>>i) & 1;
+			value |= m >> (i+1);
 		}
-		else if(half::round_style == std::round_toward_infinity)
-			value -= (value>>15) - 1;
-		else if(half::round_style == std::round_toward_neg_infinity)
-			value += value >> 15;
-		return half(detail::binary, value);
+		return half(detail::binary, detail::rounded<half::round_style>(value, g, s));
 	}
 
 	/// Maximum of half expressions.
@@ -2448,20 +2323,7 @@ namespace half_float
 		for(; m<0x80000000UL && exp>-14; m<<=1, --exp);
 		if(exp > 15)
 			return half(detail::binary, 0x7BFF+(half::round_style!=std::round_toward_zero && half::round_style!=std::round_toward_neg_infinity));
-		g = (m>>20) & 1;
-		s = (m&0xFFFFF) != 0;
-		value |= ((exp+14)<<10) + (m>>21);
-		if(half::round_style == std::round_to_nearest)
-			#if HALF_ROUND_TIES_TO_EVEN
-				value += g & (s|value);
-			#else
-				value += g;
-			#endif
-		else if(half::round_style == std::round_toward_infinity)
-			value += ~(value>>15) & (g|s);
-		else if(half::round_style == std::round_toward_neg_infinity)
-			value += (value>>15) & (g|s);
-		return half(detail::binary, value);
+		return half(detail::binary, detail::rounded<half::round_style>(value|((exp+14)<<10)+(m>>21), (m>>20)&1, (m&0xFFFFF)!=0));
 	}
 
 	/// Binary exponential.
@@ -2587,25 +2449,12 @@ namespace half_float
 			return arg;
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
-		unsigned long m = detail::log2_Q27<32>(((abs&0x3FF)|0x400UL)<<20, ilog);
+		unsigned long m = detail::log2_Q27<28>(((abs&0x3FF)|0x400UL)<<20, ilog);
 		int exp = 14, s = 0;
 		for(; m<0x8000000 && exp; m<<=1,--exp) ;
 		for(; m>0xFFFFFFF; m>>=1,++exp)
 			s |= m & 1;
-		s |= (m&0xFFFF) != 0;
-		int g = (m>>16) & 1;
-		detail::uint16 value = (static_cast<unsigned>(ilog<0)<<15) | (exp<<10) + (m>>17);
-		if(half::round_style == std::round_to_nearest)
-			#if HALF_ROUND_TIES_TO_EVEN
-				value += g & (s|value);
-			#else
-				value += g;
-			#endif
-		else if(half::round_style == std::round_toward_infinity)
-			value += ~(value>>15) & (g|s);
-		else if(half::round_style == std::round_toward_neg_infinity)
-			value += (value>>15) & (g|s);
-		return half(detail::binary, value);
+		return half(detail::binary, detail::rounded<half::round_style>((static_cast<unsigned>(ilog<0)<<15)|(exp<<10)+(m>>17), (m>>16)&1, s|((m&0xFFFF)!=0)));
 	}
 
 	/// \}
@@ -3173,39 +3022,13 @@ namespace half_float
 		exp += m >> 10;
 		detail::uint16 value = arg.data_ & 0x8000;
 		if(exp > 30)
-		{
-			if(half::round_style == std::round_toward_zero)
-				value |= 0x7BFF;
-			else if(half::round_style == std::round_toward_infinity)
-				value |= 0x7C00 - (value>>15);
-			else if(half::round_style == std::round_toward_neg_infinity)
-				value |= 0x7BFF + (value>>15);
-			else
-				value |= 0x7C00;
-		}
+			return half(detail::binary, detail::overflow<half::round_style>(value));
 		else if(exp > 0)
-			value |= (exp<<10) | (m&0x3FF);
-		else if(exp > -11)
-		{
-			m = (m&0x3FF) | 0x400;
-			if(half::round_style == std::round_to_nearest)
-			{
-				m += 1 << -exp;
-			#if HALF_ROUND_TIES_TO_EVEN
-				m -= (m>>(1-exp)) & 1;
-			#endif
-			}
-			else if(half::round_style == std::round_toward_infinity)
-				m += ((value>>15)-1) & ((1<<(1-exp))-1U);
-			else if(half::round_style == std::round_toward_neg_infinity)
-				m += -(value>>15) & ((1<<(1-exp))-1U);
-			value |= m >> (1-exp);
-		}
-		else if(half::round_style == std::round_toward_infinity)
-			value -= (value>>15) - 1;
-		else if(half::round_style == std::round_toward_neg_infinity)
-			value += value >> 15;
-		return half(detail::binary, value);
+			return half(detail::binary, value|(exp<<10)|(m&0x3FF));
+		else if(exp < -10)
+			return half(detail::binary, detail::underflow<half::round_style>(value));
+		m = (m&0x3FF) | 0x400;
+		return half(detail::binary, detail::rounded<half::round_style>(value|(m>>(1-exp)), (m>>-exp)&1, (m&((1<<-exp)-1))!=0));
 	}
 
 	/// Multiply by power of two.
