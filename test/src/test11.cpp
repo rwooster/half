@@ -144,7 +144,7 @@ public:
 
 	unsigned int test()
 	{
-
+/*
 		//test size
 		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
 
@@ -198,11 +198,11 @@ public:
 		//test power functions
 		UNARY_MATH_TEST(sqrt);
 		BINARY_MATH_TEST(pow);
-/*
+
 		//test trig functions
-		UNARY_MATH_TEST(sin);
+*/		UNARY_MATH_TEST(sin);
 		UNARY_MATH_TEST(cos);
-		UNARY_MATH_TEST(tan);
+/*		UNARY_MATH_TEST(tan);
 		UNARY_MATH_TEST(asin);
 		UNARY_MATH_TEST(acos);
 		UNARY_MATH_TEST(atan);
@@ -212,7 +212,7 @@ public:
 		UNARY_MATH_TEST(sinh);
 		UNARY_MATH_TEST(cosh);
 		UNARY_MATH_TEST(tanh);
-*/
+
 		//test round functions
 		UNARY_MATH_TEST(ceil);
 		UNARY_MATH_TEST(floor);
@@ -265,7 +265,7 @@ public:
 		//test power functions
 		UNARY_MATH_TEST(cbrt);
 		BINARY_MATH_TEST(hypot);
-/*
+
 		//test hyp functions
 		UNARY_MATH_TEST(asinh);
 		UNARY_MATH_TEST(acosh);
@@ -276,7 +276,7 @@ public:
 		UNARY_MATH_TEST(erfc);
 		UNARY_MATH_TEST(lgamma);
 		UNARY_MATH_TEST(tgamma);
-*/
+
 		//test round functions
 		UNARY_MATH_TEST(trunc);
 		UNARY_MATH_TEST(round);
@@ -438,7 +438,7 @@ public:
 		simple_test("literals", []() -> bool { using namespace half_float::literal; return comp(0.0_h, half(0.0f)) && comp(-1.0_h, half(-1.0f)) && 
 			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3f)); });
 	#endif
-
+*/
 		if(failed_.empty())
 			log_ << "all tests passed\n";
 		else
@@ -756,11 +756,14 @@ int main(int argc, char *argv[])
 		0.0000000013436144592400232123622589569799954658536700992739887706412976115422L, 0.0000000006718072297764289157920422846078078155859484240808550018085324187007L };
 	std::ofstream out("logs.txt");
 	for(auto val : logs)
-		out << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << static_cast<unsigned long>(std::floor(std::ldexp(val, 27))) << ", \n";
+		out << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(val, 27)) << ", \n";
 	return 0;
 
 	using namespace half_float::literal;
-	std::cout << (1.0l/3.0l) << " = 0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(1.0l/3.0l, 17)) << ", \n";
+	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(0.6072529350088812561694l, 30)) << ", \n";
+	std::ofstream out("atans.txt");
+	for(int i=0; i<32; ++i)
+		out << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(std::atan(std::ldexp(1.0l, -i)), 30)) << ", \n";
 	return 0;
 */
 	std::vector<std::string> args(argv, argv+argc);
