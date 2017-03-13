@@ -44,6 +44,12 @@
 	#pragma STDC FENV_ACCESS ON
 #endif
 
+int ilog2(int i)
+{
+	unsigned int l = 0;
+	for(; i>0; i>>=1,++l) ;
+	return l;
+}
 
 #define UNARY_MATH_TEST(func) { \
 	double err = 0.0, rel = 0.0; int bin = 0; \
@@ -52,7 +58,7 @@
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
 		/*std::cerr << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
 		err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << " - max binary error: " << bin << '\n'; }
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n'; }
 
 #define BINARY_MATH_TEST(func) { \
 	double err = 0.0, rel = 0.0; int bin = 0; \
@@ -61,7 +67,7 @@
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
 		/*std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << " - max binary error: " << bin << '\n'; }
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n'; }
 
 #define TERNARY_MATH_TEST(func) { \
 	double err = 0.0, rel = 0.0; int bin = 0; \
@@ -70,7 +76,7 @@
 		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
 		/*std::cerr << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
 		err = std::max(err, error); rel = std::max(rel, error/std::min(std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))), std::abs(static_cast<double>(z)))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << " - max binary error: " << bin << '\n'; }
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n'; }
 
 
 using half_float::half;
@@ -200,14 +206,14 @@ public:
 		BINARY_MATH_TEST(pow);
 
 		//test trig functions
-*/		UNARY_MATH_TEST(sin);
+		UNARY_MATH_TEST(sin);
 		UNARY_MATH_TEST(cos);
-/*		UNARY_MATH_TEST(tan);
-		UNARY_MATH_TEST(asin);
+		UNARY_MATH_TEST(tan);
+*/		UNARY_MATH_TEST(asin);
 		UNARY_MATH_TEST(acos);
 		UNARY_MATH_TEST(atan);
 		BINARY_MATH_TEST(atan2);
-
+/*
 		//test hyp functions
 		UNARY_MATH_TEST(sinh);
 		UNARY_MATH_TEST(cosh);
@@ -701,8 +707,8 @@ int main(int argc, char *argv[])
 	case std::round_toward_infinity: std::fesetround(FE_UPWARD); break;
 	case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
 	}
-
-/*	unsigned int sum = 0;
+/*
+	unsigned int sum = 0;
 	int q = 0;
 	{
 		timer time;
@@ -712,8 +718,8 @@ int main(int argc, char *argv[])
 	}
 	std::cout << sum;
 	return 0;
-*/
-/*	auto rand_abs = std::bind(std::uniform_int_distribution<std::uint32_t>(0x00000000, 0x7F100000), std::default_random_engine());
+
+	auto rand_abs = std::bind(std::uniform_int_distribution<std::uint32_t>(0x00000000, 0x7F100000), std::default_random_engine());
 	auto rand_sign = std::bind(std::uniform_int_distribution<std::uint32_t>(0, 1), std::default_random_engine());
 	std::vector<float> floats;
 	for(unsigned int i=0; i<1e8; ++i)
@@ -730,10 +736,10 @@ int main(int argc, char *argv[])
 	}
 	return 0;
 */
-	half pi = half_cast<half,std::round_to_nearest>(3.1415926535897932384626433832795L);
+	half pi = half_cast<half>(3.1415926535897932384626433832795l);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;
-	half e = half_cast<half,std::round_to_nearest>(2.7182818284590452353602874713527L);
+	half e = half_cast<half>(2.7182818284590452353602874713527l);
 	std::cout << "e:  " << e << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(e) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(e))).to_string() << std::endl;
 /*
@@ -760,10 +766,22 @@ int main(int argc, char *argv[])
 	return 0;
 
 	using namespace half_float::literal;
-	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(0.6072529350088812561694l, 30)) << ", \n";
+	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(0.6072529350088812561694l, 30)) << '\n';
 	std::ofstream out("atans.txt");
 	for(int i=0; i<32; ++i)
 		out << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(std::atan(std::ldexp(1.0l, -i)), 30)) << ", \n";
+	return 0;
+
+	using namespace half_float::literal;
+	double d;
+	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(std::modf(3.1415926535897932384626433832795l/2.0l, &d), 18)) << '\n';
+	return 0;
+
+	using namespace half_float::literal;
+	std::cout << asin(1.0_h) << " - " << half_cast<half>(std::asin(1.0)) << '\n';
+	std::cout << asin(-1.0_h) << " - " << half_cast<half>(std::asin(-1.0)) << '\n';
+	std::cout << acos(1.0_h) << " - " << half_cast<half>(std::acos(1.0)) << '\n';
+	std::cout << acos(-1.0_h) << " - " << half_cast<half>(std::acos(-1.0)) << '\n';
 	return 0;
 */
 	std::vector<std::string> args(argv, argv+argc);

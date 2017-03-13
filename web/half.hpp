@@ -49,8 +49,7 @@
 
 /// Fast half-precision fma function.
 /// This symbol is only defined if the fma() function generally executes as fast as, or faster than, a separate 
-/// half-precision multiplication followed by an addition. Due to the internal single-precision implementation of all 
-/// arithmetic operations, this is in fact always the case.
+/// half-precision multiplication followed by an addition.
 ///
 /// **See also:** Documentation for [FP_FAST_FMA](http://en.cppreference.com/w/cpp/numeric/math/fma)
 #define FP_FAST_FMAH	1
@@ -63,10 +62,7 @@ namespace half_float
 	/// Half-precision floating point type.
 	/// This class implements an IEEE-conformant half-precision floating point type with the usual arithmetic operators and 
 	/// conversions. It is implicitly convertible to single-precision floating point, which makes artihmetic expressions and 
-	/// functions with mixed-type operands to be of the most precise operand type. Additionally all arithmetic operations 
-	/// (and many mathematical functions) are carried out in single-precision internally. All conversions from single- to 
-	/// half-precision are done using the library's default rounding mode, but temporary results inside chained arithmetic 
-	/// expressions are kept in single-precision as long as possible (while of course still maintaining a strong half-precision type).
+	/// functions with mixed-type operands to be of the most precise operand type.
 	///
 	/// According to the C++98/03 definition, the half type is not a POD type. But according to C++11's less strict and 
 	/// extended definitions it is both a standard layout type and a trivially copyable type (even if not a POD type), which 
@@ -658,7 +654,7 @@ namespace half_float
 	/// \return floating point exponent
 	/// \retval FP_ILOGB0 for zero
 	/// \retval FP_ILOGBNAN for NaN
-	/// \retval MAX_INT for infinity
+	/// \retval INT_MAX for infinity
 	int ilogb(half arg);
 
 	/// Extract exponent.
