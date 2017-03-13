@@ -208,17 +208,17 @@ public:
 		//test trig functions
 		UNARY_MATH_TEST(sin);
 		UNARY_MATH_TEST(cos);
-		UNARY_MATH_TEST(tan);
-*/		UNARY_MATH_TEST(asin);
+*/		UNARY_MATH_TEST(tan);
+/*		UNARY_MATH_TEST(asin);
 		UNARY_MATH_TEST(acos);
 		UNARY_MATH_TEST(atan);
 		BINARY_MATH_TEST(atan2);
-/*
+
 		//test hyp functions
-		UNARY_MATH_TEST(sinh);
+*/		UNARY_MATH_TEST(sinh);
 		UNARY_MATH_TEST(cosh);
 		UNARY_MATH_TEST(tanh);
-
+/*
 		//test round functions
 		UNARY_MATH_TEST(ceil);
 		UNARY_MATH_TEST(floor);
@@ -774,7 +774,7 @@ int main(int argc, char *argv[])
 
 	using namespace half_float::literal;
 	double d;
-	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(std::modf(3.1415926535897932384626433832795l/2.0l, &d), 18)) << '\n';
+	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << static_cast<long long>(std::ceil(std::ldexp(std::log2(10.0l), 30))) << '\n';
 	return 0;
 
 	using namespace half_float::literal;
