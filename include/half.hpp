@@ -14,7 +14,7 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// Version 1.12.0
+// Version 2.0.0
 
 /// \file
 /// Main header file for half precision functionality.
@@ -22,7 +22,6 @@
 #ifndef HALF_HALF_HPP
 #define HALF_HALF_HPP
 
-/// Combined gcc version number.
 #define HALF_GNUC_VERSION (__GNUC__*100+__GNUC_MINOR__)
 
 //check C++11 language features
@@ -407,6 +406,49 @@ namespace half_float
 		/// \name Conversion and rounding
 		/// \{
 
+		/// Half-precision overflow.
+		/// \tparam R rounding mode to use
+		/// \param value half-precision value with sign bit only
+		/// \return rounded overflowing half-precision value
+		template<std::float_round_style R> uint16 overflow(uint16 value)
+		{
+			if(R == std::round_toward_infinity)
+				return value | 0x7C00 - (value>>15);
+			else if(R == std::round_toward_neg_infinity)
+				return value | 0x7BFF + (value>>15);
+			return value | 0x7BFF + (R!=std::round_toward_zero);
+		}
+
+		/// Half-precision underflow.
+		/// \tparam R rounding mode to use
+		/// \param value half-precision value with sign bit only
+		/// \return rounded underflowing half-precision value
+		template<std::float_round_style R> uint16 underflow(uint16 value)
+		{
+			if(R == std::round_toward_infinity)
+				return value + 1 - (value>>15);
+			else if(R == std::round_toward_neg_infinity)
+				return value + (value>>15);
+			return value;
+		}
+
+		/// Round half-precision number.
+		/// \tparam R rounding mode to use
+		/// \param value half-precision number to round
+		/// \param g guard bit (most significant discarded bit)
+		/// \param sticky bit (or of all but the most significant discarded bits)
+		/// \return rounded half-precision value
+		template<std::float_round_style R> uint16 rounded(uint16 value, int g, int s)
+		{
+			if(R == std::round_to_nearest)
+				return value + (g&(s|value));
+			else if(R == std::round_toward_infinity)
+				return value + (~(value>>15)&(g|s));
+			else if(R == std::round_toward_neg_infinity)
+				return value + ((value>>15)&(g|s));
+			return value;
+		}
+
 		/// Convert IEEE single-precision to half-precision.
 		/// Credit for this goes to [Jeroen van der Zijp](ftp://ftp.fox-toolkit.org/pub/fasthalffloatconversion.pdf).
 		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
@@ -423,13 +465,7 @@ namespace half_float
 			if(exp == 255)
 				return hbits | 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0x7FFFFF)!=0));
 			if(exp > 142)
-			{
-				if(R == std::round_toward_infinity)
-					return hbits | 0x7C00 - (hbits>>15);
-				if(R == std::round_toward_neg_infinity)
-					return hbits | 0x7BFF + (hbits>>15);
-				return hbits | 0x7BFF + (R!=std::round_toward_zero);
-			}
+				return overflow<R>(hbits);
 			int g, s;
 			if(exp > 112)
 			{
@@ -450,12 +486,7 @@ namespace half_float
 				g = 0;
 				s = bits != 0;
 			}
-			if(R == std::round_to_nearest)
-				hbits += g & (s|hbits);
-			else if(R == std::round_toward_infinity)
-				hbits += ~(hbits>>15) & (g|s);
-			else if(R == std::round_toward_neg_infinity)
-				hbits += (hbits>>15) & (g|s);
+			return rounded<R>(hbits, g, s);
 */			static const uint16 base_table[512] = { 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
@@ -538,13 +569,7 @@ namespace half_float
 			if(exp == 2047)
 				return hbits | 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0xFFFFFFFFFFFFF)!=0));
 			if(exp > 1038)
-			{
-				if(R == std::round_toward_infinity)
-					return hbits | 0x7C00 - (hbits>>15);
-				if(R == std::round_toward_neg_infinity)
-					return hbits | 0x7BFF + (hbits>>15);
-				return hbits | 0x7BFF + (R!=std::round_toward_zero);
-			}
+				return overflow<R>(hbits);
 			int g, s = lo != 0;
 			if(exp > 1008)
 			{
@@ -565,13 +590,7 @@ namespace half_float
 				g = 0;
 				s |= hi != 0;
 			}
-			if(R == std::round_to_nearest)
-				hbits += g & (s|hbits);
-			else if(R == std::round_toward_infinity)
-				hbits += ~(hbits>>15) & (g|s);
-			else if(R == std::round_toward_neg_infinity)
-				hbits += (hbits>>15) & (g|s);
-			return hbits;
+			return rounded<R>(hbits, g, s);
 		}
 
 		/// Convert non-IEEE floating point to half-precision.
@@ -591,13 +610,7 @@ namespace half_float
 			int exp;
 			std::frexp(value, &exp);
 			if(exp > 16)
-			{
-				if(R == std::round_toward_infinity)
-					return hbits | 0x7C00 - (hbits>>15);
-				else if(R == std::round_toward_neg_infinity)
-					return hbits | 0x7BFF + (hbits>>15);
-				return hbits | 0x7BFF + (R!=std::round_toward_zero);
-			}
+				return overflow<R>(hbits);
 			if(exp < -13)
 				value = std::ldexp(value, 24);
 			else
@@ -644,14 +657,7 @@ namespace half_float
 				value = -value;
 			uint16 bits = S << 15;
 			if(value > 0xFFFF)
-			{
-				if(R == std::round_toward_infinity)
-					bits |= 0x7C00 - S;
-				else if(R == std::round_toward_neg_infinity)
-					bits |= 0x7BFF + S;
-				else
-					bits |= 0x7BFF + (R!=std::round_toward_zero);
-			}
+				return overflow<R>(bits);
 			else if(value)
 			{
 				unsigned int m = value, exp = 24;
@@ -659,14 +665,7 @@ namespace half_float
 				for(; m>0x7FF; m>>=1,++exp) ;
 				bits |= (exp<<10) + m;
 				if(exp > 24)
-				{
-					if(R == std::round_to_nearest)
-						bits += (value>>(exp-25)) & (((((1<<(exp-25))-1)&value)!=0)|bits) & 1;
-					else if(R == std::round_toward_infinity)
-						bits += ((value&((1<<(exp-24))-1))!=0) & !S;
-					else if(R == std::round_toward_neg_infinity)
-						bits += ((value&((1<<(exp-24))-1))!=0) & S;
-				}
+					return rounded<R>(bits, (value>>(exp-25))&1, (((1<<(exp-25))-1)&value)!=0);
 			}
 			return bits;
 		}
@@ -679,6 +678,32 @@ namespace half_float
 		template<std::float_round_style R,typename T> uint16 int2half(T value)
 		{
 			return (value<0) ? int2half_impl<R,true>(value) : int2half_impl<R,false>(value);
+		}
+
+		/// Convert fixed point to half-precision floating point.
+		/// \tparam R rounding mode to use
+		/// \tparam F number of fractional bits (at least 11)
+		/// \tparam S `true` for signed, `false` for unsigned
+		/// \tparam N `true` for additional normalization step, `false` if already normalized to 1.X
+		/// \tparam T base type of fixed point representation (builtin integer type, unsigned if \a S is `true`)
+		/// \param m mantissa in Q1.F fixed point format
+		/// \param exp exponent
+		/// \param value half-precision value with sign bit only
+		/// \param sticky bit (or of all but the most significant already discarded bits)
+		/// \return value converted to half-precision
+		template<std::float_round_style R,unsigned int F,bool S,bool N,typename T> uint16 fixed2half(T m, int exp = 14, uint16 value = 0, int s = 0)
+		{
+			if(S)
+			{
+				T sign = -((m>>31)&1);
+				m = (m^sign) - sign;
+				value = static_cast<uint16>(sign) & 0x8000;
+			}
+			if(N)
+				for(; m<(T(1)<<F) && exp; m<<=1,--exp) ;
+			else if(exp < 0)
+				return rounded<R>(value|(m>>(F-10-exp)), (m>>(F-11-exp))&1, s|((m&((T(1)<<(F-11-exp))-1))!=0));
+			return rounded<R>(value|(exp<<10)+(m>>(F-10)), (m>>(F-11))&1, s|(((m&((T(1)<<(F-11))-1)))!=0));
 		}
 
 		/// Convert half-precision to IEEE single-precision.
@@ -955,11 +980,11 @@ namespace half_float
 			{
 				result &= 0x8000;
 				if(R == std::round_to_nearest)
-					result |= 0x3C00U & -(e>=(0x3800+E));
+					result |= 0x3C00U & -static_cast<unsigned>(e>=(0x3800+E));
 				else if(R == std::round_toward_infinity)
 					result |= 0x3C00U & -(~(value>>15)&(e!=0));
 				else if(R == std::round_toward_neg_infinity)
-					result |= 0x3C00U & -(value>0x8000);
+					result |= 0x3C00U & -static_cast<unsigned>(value>0x8000);
 			}
 			else if(e < 0x6400)
 			{
@@ -986,78 +1011,6 @@ namespace half_float
 		/// \param value binary representation of half-precision value
 		/// \return half-precision bits for nearest integral value
 		inline uint16 round_half_up(uint16 value) { return round_half_impl<std::round_to_nearest,false>(value); }
-
-		/// Half-precision overflow.
-		/// \tparam R rounding mode to use
-		/// \param value half-precision value with sign bit only
-		/// \return rounded overflowing half-precision value
-		template<std::float_round_style R> uint16 overflow(uint16 value)
-		{
-			if(R == std::round_toward_infinity)
-				return value | 0x7C00 - (value>>15);
-			else if(R == std::round_toward_neg_infinity)
-				return value | 0x7BFF + (value>>15);
-			else
-				return value | 0x7BFF + (R!=std::round_toward_zero);
-		}
-
-		/// Half-precision underflow.
-		/// \tparam R rounding mode to use
-		/// \param value half-precision value with sign bit only
-		/// \return rounded underflowing half-precision value
-		template<std::float_round_style R> uint16 underflow(uint16 value)
-		{
-			if(R == std::round_toward_infinity)
-				return value + 1 - (value>>15);
-			else if(R == std::round_toward_neg_infinity)
-				return value + (value>>15);
-			else
-				return value;
-		}
-
-		/// Round half-precision number.
-		/// \tparam R rounding mode to use
-		/// \param value half-precision number to round
-		/// \param g guard bit (most significant discarded bit)
-		/// \param sticky bit (or of all but the most significant discarded bits)
-		/// \return rounded half-precision value
-		template<std::float_round_style R> uint16 rounded(uint16 value, int g, int s)
-		{
-			if(R == std::round_to_nearest)
-				return value + (g&(s|value));
-			else if(R == std::round_toward_infinity)
-				return value + (~(value>>15)&(g|s));
-			else if(R == std::round_toward_neg_infinity)
-				return value + ((value>>15)&(g|s));
-			else
-				return value;
-		}
-
-		/// Convert fixed point to half-precision floating point.
-		/// \tparam R rounding mode to use
-		/// \tparam F number of fractional bits (at least 11)
-		/// \tparam S `true` for signed, `false` for unsigned
-		/// \tparam N `true` for additional normalization step, `false` if already normalized to 1.X
-		/// \tparam T base type of fixed point representation (builtin integer type, unsigned if \a S is `true`)
-		/// \param m mantissa in Q1.F fixed point format
-		/// \param exp exponent
-		/// \param value half-precision value with sign bit only
-		/// \param sticky bit (or of all but the most significant already discarded bits)
-		/// \return value converted to half-precision
-		template<std::float_round_style R,unsigned int F,bool S,bool N,typename T> uint16 fixed2half(T m, int exp = 14, uint16 value = 0, int s = 0)
-		{
-			if(S)
-			{
-				T sign = -((m>>31)&1);
-				m = (m^sign) - sign;
-				value = static_cast<uint16>(sign) & 0x8000;
-			}
-			if(N)
-				for(; m<(T(1)<<F) && exp; m<<=1,--exp) ;
-			else if(exp < 0)
-				return rounded<R>(value|(m>>(F-10-exp)), (m>>(F-11-exp))&1, s|((m&((T(1)<<(F-11-exp))-1))!=0));
-			return rounded<R>(value|(exp<<10)+(m>>(F-10)), (m>>(F-11))&1, s|(((m&((T(1)<<(F-11))-1)))!=0));
-		}
 
 		/// \}
 		/// \name Mathematics
@@ -2183,7 +2136,7 @@ namespace half_float
 		for(; absx<0x400; absx<<=1,--exp) ;
 		for(; absy<0x400; absy<<=1,--exp) ;
 		long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
-		int i = m >> 21, s = 0;
+		int i = m >> 21;
 		exp += (absx>>10) + (absy>>10) + i;
 		m <<= 3 - i;
 		if(absz)
@@ -2213,8 +2166,7 @@ namespace half_float
 				m += mz;
 				if(m > 0xFFFFFF)
 				{
-					s = m & 1;
-					m >>= 1;
+					m = (m>>1) | (m&1);
 					++exp;
 				}
 			}
@@ -2223,7 +2175,7 @@ namespace half_float
 			return half(detail::binary, detail::overflow<half::round_style>(value));
 		else if(exp < -10)
 			return half(detail::binary, detail::underflow<half::round_style>(value));
-		return half(detail::binary, detail::fixed2half<half::round_style,23,false,false>(m, exp-1, value, s));
+		return half(detail::binary, detail::fixed2half<half::round_style,23,false,false>(m, exp-1, value));
 	}
 
 	/// Maximum of half expressions.
@@ -2665,8 +2617,14 @@ namespace half_float
 			return std::make_pair(half(detail::binary, 0x7FFF), half(detail::binary, 0x7FFF));
 		if(!abs)
 			return std::make_pair(arg, half(detail::binary, 0x3C00));
-		std::pair<detail::uint16,detail::uint16> sc = detail::sincos<true,true>(arg.data_);
-		return std::make_pair(half(detail::binary, sc.first), half(detail::binary, sc.second));
+
+		if(abs > 0x3E48)
+			return std::make_pair(half(detail::binary, detail::float2half<half::round_style>(std::sin(detail::half2float<double>(arg.data_)))), 
+				half(detail::binary, detail::float2half<half::round_style>(std::cos(detail::half2float<double>(arg.data_)))));
+
+		std::pair<detail::uint16,detail::uint16> sc = detail::sincos(arg.data_);
+		return std::make_pair(half(detail::binary, detail::fixed2half<half::round_style,30,true,true>(sc.first)), 
+			half(detail::binary, detail::fixed2half<half::round_style,30,true,true>(sc.second)));
 	}
 */
 	/// Sine function.

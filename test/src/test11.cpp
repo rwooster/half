@@ -150,7 +150,7 @@ public:
 
 	unsigned int test()
 	{
-/*
+
 		//test size
 		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
 
@@ -208,17 +208,17 @@ public:
 		//test trig functions
 		UNARY_MATH_TEST(sin);
 		UNARY_MATH_TEST(cos);
-*/		UNARY_MATH_TEST(tan);
-/*		UNARY_MATH_TEST(asin);
+		UNARY_MATH_TEST(tan);
+		UNARY_MATH_TEST(asin);
 		UNARY_MATH_TEST(acos);
 		UNARY_MATH_TEST(atan);
 		BINARY_MATH_TEST(atan2);
 
 		//test hyp functions
-*/		UNARY_MATH_TEST(sinh);
+		UNARY_MATH_TEST(sinh);
 		UNARY_MATH_TEST(cosh);
 		UNARY_MATH_TEST(tanh);
-/*
+
 		//test round functions
 		UNARY_MATH_TEST(ceil);
 		UNARY_MATH_TEST(floor);
@@ -444,7 +444,7 @@ public:
 		simple_test("literals", []() -> bool { using namespace half_float::literal; return comp(0.0_h, half(0.0f)) && comp(-1.0_h, half(-1.0f)) && 
 			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3f)); });
 	#endif
-*/
+
 		if(failed_.empty())
 			log_ << "all tests passed\n";
 		else
