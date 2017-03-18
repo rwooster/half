@@ -735,14 +735,14 @@ int main(int argc, char *argv[])
 			halfs[i] = half_cast<half,std::round_to_nearest>(floats[i]);
 	}
 	return 0;
-*/
+
 	half pi = half_cast<half>(3.1415926535897932384626433832795l);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;
 	half e = half_cast<half>(2.7182818284590452353602874713527l);
 	std::cout << "e:  " << e << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(e) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(e))).to_string() << std::endl;
-/*
+
 	static const long double logs[] = {
 		1.0000000000000000000000000000000000000000000000000000000000000000000000000000L, 0.5849625007211561814537389439478165087598144076924810604557526545410982276485L,
 		0.3219280948873623478703194294893901758648313930245806120547563958159347765589L, 0.1699250014423123629074778878956330175196288153849621209115053090821964552970L,
@@ -774,15 +774,17 @@ int main(int argc, char *argv[])
 
 	using namespace half_float::literal;
 	double d;
-	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << static_cast<long long>(std::ceil(std::ldexp(std::log2(10.0l), 30))) << '\n';
+	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << std::llrint(std::ldexp(1.2732395447351626861510701069801l*std::log2(2.7182818284590452353602874713527l), 35)) << '\n';
 	return 0;
 
 	using namespace half_float::literal;
-	std::cout << asin(1.0_h) << " - " << half_cast<half>(std::asin(1.0)) << '\n';
-	std::cout << asin(-1.0_h) << " - " << half_cast<half>(std::asin(-1.0)) << '\n';
-	std::cout << acos(1.0_h) << " - " << half_cast<half>(std::acos(1.0)) << '\n';
-	std::cout << acos(-1.0_h) << " - " << half_cast<half>(std::acos(-1.0)) << '\n';
-	return 0;
+	for(std::uint16_t i=0; i<0x7C00; ++i)
+	{
+		half x = b2h(i), y = half_cast<half,std::round_toward_zero>(std::erf(half_cast<double>(x)));
+		std::cout << x << " (" << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << i << std::dec << ")\t= " << y << '\n';
+		if(y >= 1.0_h)
+			return 0;
+	}
 */
 	std::vector<std::string> args(argv, argv+argc);
 	std::unique_ptr<std::ostream> file;
