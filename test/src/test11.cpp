@@ -101,8 +101,8 @@ bool comp(half a, half b)
 class half_test
 {
 public:
-	half_test(std::ostream &log, bool fast)
-		: tests_(0), log_(log), fast_(fast)
+	half_test(std::ostream &log, bool fast, bool rough)
+		: tests_(0), log_(log), fast_(fast), rough_(rough)
 	{
 		//prepare halfs
 		half_vector batch;
@@ -150,7 +150,7 @@ public:
 
 	unsigned int test()
 	{
-
+/*
 		//test size
 		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
 
@@ -197,27 +197,35 @@ public:
 			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, half_cast<half>(0.0))); });
 
 		//test exponential functions
-		UNARY_MATH_TEST(exp);
-		UNARY_MATH_TEST(log);
-		UNARY_MATH_TEST(log10);
+		reference_test("exp", half_float::exp);
+		reference_test("exp2", half_float::exp2);
+		reference_test("expm1", half_float::expm1);
+		reference_test("log", half_float::log);
+		reference_test("log10", half_float::log10);
+		reference_test("log1p", half_float::log1p);
+		reference_test("log2", half_float::log2);
 
 		//test power functions
-		UNARY_MATH_TEST(sqrt);
+		reference_test("sqrt", half_float::sqrt);
+		reference_test("cbrt", half_float::cbrt);
 		BINARY_MATH_TEST(pow);
 
 		//test trig functions
-		UNARY_MATH_TEST(sin);
-		UNARY_MATH_TEST(cos);
-		UNARY_MATH_TEST(tan);
+		reference_test("sin", half_float::sin);
+		reference_test("cos", half_float::cos);
+		reference_test("tan", half_float::tan);
 		UNARY_MATH_TEST(asin);
 		UNARY_MATH_TEST(acos);
 		UNARY_MATH_TEST(atan);
 		BINARY_MATH_TEST(atan2);
 
 		//test hyp functions
-		UNARY_MATH_TEST(sinh);
-		UNARY_MATH_TEST(cosh);
-		UNARY_MATH_TEST(tanh);
+		reference_test("sinh", half_float::sinh);
+		reference_test("cosh", half_float::cosh);
+		reference_test("tanh", half_float::tanh);
+		reference_test("asinh", half_float::asinh);
+		reference_test("acosh", half_float::acosh);
+		reference_test("atanh", half_float::atanh);
 
 		//test round functions
 		UNARY_MATH_TEST(ceil);
@@ -262,20 +270,8 @@ public:
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
 
-		//test exponential functions
-		UNARY_MATH_TEST(exp2);
-		UNARY_MATH_TEST(expm1);
-		UNARY_MATH_TEST(log1p);
-		UNARY_MATH_TEST(log2);
-
 		//test power functions
-		UNARY_MATH_TEST(cbrt);
 		BINARY_MATH_TEST(hypot);
-
-		//test hyp functions
-		UNARY_MATH_TEST(asinh);
-		UNARY_MATH_TEST(acosh);
-		UNARY_MATH_TEST(atanh);
 
 		//test err functions
 		UNARY_MATH_TEST(erf);
@@ -444,7 +440,7 @@ public:
 		simple_test("literals", []() -> bool { using namespace half_float::literal; return comp(0.0_h, half(0.0f)) && comp(-1.0_h, half(-1.0f)) && 
 			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3f)); });
 	#endif
-
+*/
 		if(failed_.empty())
 			log_ << "all tests passed\n";
 		else
@@ -461,7 +457,7 @@ private:
 	typedef std::map<std::string,half_vector> test_map;
 	typedef std::map<std::string,int> class_map;
 
-	template<typename F> bool class_test(const std::string &name, F test)
+	template<typename F> bool class_test(const std::string &name, F &&test)
 	{
 		unsigned int count = 0;
 		log_ << "testing " << name << ":\n";
@@ -488,7 +484,7 @@ private:
 		return false;
 	}
 
-	template<typename F> bool simple_test(const std::string &name, F test)
+	template<typename F> bool simple_test(const std::string &name, F &&test)
 	{
 		log_ << "testing " << name << ": ";
 		bool passed = test();
@@ -499,7 +495,7 @@ private:
 		return passed;
 	}
 
-	template<typename F> bool unary_test(const std::string &name, F test)
+	template<typename F> bool unary_test(const std::string &name, F &&test)
 	{
 		unsigned int count = 0;
 		log_ << "testing " << name << ":\n";
@@ -525,7 +521,7 @@ private:
 		return false;
 	}
 
-	template<typename F> bool binary_test(const std::string &name, F test)
+	template<typename F> bool binary_test(const std::string &name, F &&test)
 	{
 		unsigned long tests = 0, count = 0, step = fast_ ? 64 : 1;
 		auto rand = std::bind(std::uniform_int_distribution<std::uint16_t>(0, step-1), std::default_random_engine());
@@ -575,7 +571,7 @@ private:
 		return passed;
 	}
 
-	template<typename F> bool ternary_test(const std::string &name, F test)
+	template<typename F> bool ternary_test(const std::string &name, F &&test)
 	{
 		unsigned int tests = 0, count = 0, step = fast_ ? 512 : 1;
 		auto rand = std::bind(std::uniform_int_distribution<std::uint16_t>(0, step-1), std::default_random_engine());
@@ -633,7 +629,7 @@ private:
 		return passed;
 	}
 
-	template<typename F> bool float_test(const std::string &name, F test)
+	template<typename F> bool float_test(const std::string &name, F &&test)
 	{
 		auto rand32 = std::bind(std::uniform_int_distribution<std::uint32_t>(0, std::numeric_limits<std::uint32_t>::max()), std::default_random_engine());
 		unsigned long long count = 0, tests = fast_ ? 1e6 : (1ULL<<32);
@@ -661,7 +657,7 @@ private:
 		return passed;
 	}
 
-	template<typename F> bool int_test(const std::string &name, F test)
+	template<typename F> bool int_test(const std::string &name, F &&test)
 	{
 		unsigned int count = 0, tests = (1<<17) + 1;
 		log_ << "testing " << name << ": ";
@@ -679,12 +675,36 @@ private:
 		return passed;
 	}
 
+	template<typename F> bool reference_test(const std::string &name, F &&fn)
+	{
+		std::vector<double> reference(std::numeric_limits<std::uint16_t>::max()+1);
+		std::ifstream in("reference/"+name, std::ios_base::in|std::ios_base::binary);
+		in.read(reinterpret_cast<char*>(reference.data()), reference.size()*sizeof(double));
+		double err = 0.0, rel = 0.0; int bin = 0;
+		bool success = unary_test(name, [&,this](half arg) -> bool {
+			double d = reference[h2b(arg)];
+			half a = fn(arg), b = half_cast<half>(d);
+			bool equal = rough_ ? (comp(a, half_cast<half,std::round_toward_infinity>(d)) || comp(a, half_cast<half, std::round_toward_neg_infinity>(d))) : comp(a, b);
+			if(!equal)
+			{
+				double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
+//				std::cerr << arg << '(' << std::hex << h2b(arg) << ") = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
+				err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
+			}
+			return equal;
+		});
+		if(err != 0.0 || rel != 0.0)
+			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n';
+		return success;
+	}
+
 	test_map halfs_;
 	class_map classes_;
 	unsigned int tests_;
 	std::vector<std::string> failed_;
 	std::ostream &log_;
 	bool fast_;
+	bool rough_;
 };
 
 #include <chrono>
@@ -788,15 +808,17 @@ int main(int argc, char *argv[])
 */
 	std::vector<std::string> args(argv, argv+argc);
 	std::unique_ptr<std::ostream> file;
-	bool fast = false;
+	bool fast = false, rough = false;
 	for(auto iter=std::next(args.begin()); iter!=args.end(); ++iter)
 	{
 		if(*iter == "-fast")
 			fast = true;
+		else if(*iter == "-rough")
+			rough = true;
 		else
 			file.reset(new std::ofstream(*iter));
 	}
-	half_test test(file ? *file : std::cout, fast);
+	half_test test(file ? *file : std::cout, fast, rough);
 
 	timer time;
 	return test.test();
