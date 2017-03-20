@@ -1349,8 +1349,9 @@ namespace half_float
 		/// Get exponentials for hyperbolic computation
 		/// \param abs half-precision floating point value
 		/// \param exp variable to take unbiased exponent of larger result
+		/// \param n number of iterations (at most 32)
 		/// \return exp(abs) and exp(-\a abs) as Q1.31 with same exponent
-		inline std::pair<uint32,uint32> hyperbolic_args(detail::uint16 abs, int &exp)
+		inline std::pair<uint32,uint32> hyperbolic_args(detail::uint16 abs, int &exp, unsigned int n = 32)
 		{
 			uint32 mx = detail::multiply64(static_cast<uint32>((abs&0x3FF)+((abs>0x3FF)<<10))<<21, 0xB8AA3B29), my;
 			int e = (abs>>10) + (abs<=0x3FF);
@@ -1364,7 +1365,7 @@ namespace half_float
 				exp = mx >> (45-e);
 				mx = (mx<<(e-14)) & 0x7FFFFFFF;
 			}
-			mx = detail::exp2(mx);
+			mx = detail::exp2(mx, n);
 			int d = exp << 1;
 			if(mx > 0x80000000)
 			{
@@ -1522,7 +1523,7 @@ namespace half_float
 			}
 			my += mx;
 			i = my >> 31;
-			return detail::log2_post<R,0xB8AA3B2A>(detail::log2(my>>i, ilog+i), 17, S && (arg&0x8000));
+			return detail::log2_post<R,0xB8AA3B2A>(detail::log2(my>>i, ilog+i/*, 27*/), 17, S && (arg&0x8000));
 		}
 
 		/// Error function and postprocessing.
@@ -2422,7 +2423,7 @@ namespace half_float
 			exp = m >> (45-e);
 			m = (m<<(e-14)) & 0x7FFFFFFF;
 		}
-		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(m), exp, arg.data_&0x8000));
+		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(m, 26), exp, arg.data_&0x8000));
 	}
 
 	/// Binary exponential.
@@ -2447,7 +2448,7 @@ namespace half_float
 			m = 0;
 			exp <<= e - 25;
 		}
-		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(m), exp, arg.data_&0x8000));
+		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(m, 28), exp, arg.data_&0x8000));
 	}
 
 	/// Exponential minus one.
@@ -2508,7 +2509,7 @@ namespace half_float
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
 		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(
-			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400UL)<<20, ilog), 17, ilog<0));
+			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400UL)<<20, ilog, 27), 17, ilog<0));
 	}
 
 	/// Common logarithm.
@@ -2536,7 +2537,7 @@ namespace half_float
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
 		return half(detail::binary, detail::log2_post<half::round_style,0xD49A784C>(
-			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400UL)<<20, ilog), 16, ilog<0));
+			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400UL)<<20, ilog, 27), 16, ilog<0));
 	}
 
 	/// Natural logarithm.
@@ -2591,7 +2592,7 @@ namespace half_float
 			return arg;
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
-		detail::uint32 m = detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog);
+		detail::uint32 m = detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 28);
 		int exp = 14, s = 0;
 		for(; m<0x8000000 && exp; m<<=1,--exp) ;
 		for(; m>0xFFFFFFF; m>>=1,++exp)
@@ -2633,7 +2634,7 @@ namespace half_float
 			return arg;
 		for(; abs<0x400; abs<<=1, --ilog);
 		ilog += abs >> 10;
-		detail::uint32 m = detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog), f;
+		detail::uint32 m = detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 24), f;
 		for(; m<0x80000000; m<<=1,--exp) ;
 		m = detail::multiply64(m, 0xAAAAAAAB);
 		int i = m >> 31;
@@ -2649,7 +2650,21 @@ namespace half_float
 			f = (m<<exp) & 0x7FFFFFFF;
 			exp = m >> (31-exp);
 		}
-		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(f), exp, ilog<0, arg.data_&0x8000));
+		m = detail::exp2(f, 30);
+		if(ilog < 0)
+		{
+			if(m > 0x80000000)
+			{
+				int s;
+				m = detail::divide64(0x80000000, m, s);
+				m |= s;
+				++exp;
+			}
+			exp = -exp;
+		}
+		if(half::round_style == std::round_to_nearest)
+			return half(detail::binary, detail::fixed2half<half::round_style,31,false,false>(m, exp+14, arg.data_&0x8000));
+		return half(detail::binary, detail::fixed2half<half::round_style,23,false,false>((m+0x80)>>8, exp+14, arg.data_&0x8000));
 	}
 
 	/// Hypotenuse function.
@@ -2956,7 +2971,7 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF, exp;
 		if(!abs || abs >= 0x7C00)
 			return arg;
-		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp);
+		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 32);
 		detail::uint32 m = mm.first - mm.second;
 		for(exp+=13; m<0x80000000 && exp; m<<=1,--exp) ;
 		detail::uint16 value = arg.data_ & 0x8000;
@@ -2975,7 +2990,7 @@ namespace half_float
 			return half(detail::binary, 0x3C00);
 		if(abs >= 0x7C00)
 			return half(detail::binary, 0x7C00|-static_cast<unsigned>(abs>0x7C00));
-		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp);
+		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 23);
 		detail::uint32 m = mm.first + mm.second;
 		if(!(m&0x80000000))
 		{
@@ -2995,7 +3010,7 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF, exp;
 		if(!abs || abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, arg.data_-0x4000) : arg;
-		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp);
+		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 27);
 		detail::uint32 my = mm.first - mm.second, mx = mm.first + mm.second;
 		for(exp=13; my<0x80000000; my<<=1,--exp) ;
 		if(!(mx&0x80000000))
@@ -3048,7 +3063,7 @@ namespace half_float
 			exp = -exp;
 		}
 		int i = my >= mx, s;
-		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(detail::log2(detail::divide64(my>>(i+1), mx, s), exp+i-1), 16, exp<0));
+		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(detail::log2(detail::divide64(my>>(i+1), mx, s), exp+i-1, 27), 16, exp<0));
 	}
 
 	/// \}
@@ -3066,7 +3081,7 @@ namespace half_float
 			return (abs==0x7C00) ? half(detail::binary, value|0x3C00) : arg;
 
 		if(abs > 0x4200)
-			return half(detail::binary, (abs<0x45D8) ? detail::rounded<half::round_style>(value|0x3BFF, 1, 1) : (value|0x3C00));
+			return half(detail::binary, detail::rounded<half::round_style>(value|0x3BFF, 1, 1));
 
 		return half(detail::binary, detail::erf<half::round_style, false>(arg.data_));
 		return half(detail::binary, detail::float2half<half::round_style>(std::erf(detail::half2float<double>(arg.data_))));
@@ -3082,8 +3097,8 @@ namespace half_float
 		if(abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, value>>1) : arg;
 
-		if(abs >= 0x4600)
-			return half(detail::binary, value>>1);
+		if(abs >= 0x4200)
+			return half(detail::binary, detail::rounded<half::round_style>((value>>1)-(value>>15), value>>15, 1));
 
 //		return half(detail::binary, detail::float2half<half::round_style>(1.0-detail::erf(detail::half2float<double>(arg.data_))));
 		return half(detail::binary, detail::float2half<half::round_style>(std::erfc(detail::half2float<double>(arg.data_))));

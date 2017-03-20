@@ -33,6 +33,7 @@
 #include <bitset>
 #include <limits>
 #include <typeinfo>
+#include <stdexcept>
 #include <cstdint>
 #include <cmath>
 #if HALF_ENABLE_CPP11_HASH
@@ -95,6 +96,17 @@ std::uint16_t h2b(half h)
 bool comp(half a, half b)
 {
 	return (isnan(a) && isnan(b)) || a == b;//h2b(a) == h2b(b);
+}
+
+template<std::float_round_style R> half select(const std::pair<half,half> &hh)
+{
+	if(R == std::round_toward_zero)
+		return (abs(hh.first)>abs(hh.second)) ? hh.second : hh.first;
+	if(R == std::round_toward_infinity)
+		return (hh.second>hh.first) ? hh.second : hh.first;
+	if(R == std::round_toward_neg_infinity)
+		return (hh.second<hh.first) ? hh.second : hh.first;
+	return hh.first;
 }
 
 
@@ -195,8 +207,8 @@ public:
 		binary_test("fmod", [](half x, half y) { return comp(fmod(x, y), half_cast<half>(std::fmod(half_cast<double>(x), half_cast<double>(y)))); });
 		binary_test("fdim", [](half a, half b) -> bool { half c = fdim(a, b); return isnan(a) || isnan(b) || 
 			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, half_cast<half>(0.0))); });
-*/		ternary_test("fma", [](half x, half y, half z) { return comp(fma(x, y, z), half_cast<half>(half_cast<double>(x)*half_cast<double>(y)+half_cast<double>(z))); });
-/*
+		ternary_test("fma", [](half x, half y, half z) { return comp(fma(x, y, z), half_cast<half>(half_cast<double>(x)*half_cast<double>(y)+half_cast<double>(z))); });
+
 		//test exponential functions
 		unary_reference_test("exp", half_float::exp);
 		unary_reference_test("exp2", half_float::exp2);
@@ -210,9 +222,9 @@ public:
 		unary_reference_test("sqrt", half_float::sqrt);
 		unary_reference_test("cbrt", half_float::cbrt);
 		binary_reference_test("pow", half_float::pow);
-*/		binary_reference_test<half(half,half)>("hypot", half_float::hypot);
+		binary_reference_test<half(half,half)>("hypot", half_float::hypot);
 		ternary_reference_test<half(half,half,half)>("hypot3", half_float::hypot);
-/*
+
 		//test trig functions
 		unary_reference_test("sin", half_float::sin);
 		unary_reference_test("cos", half_float::cos);
@@ -221,7 +233,6 @@ public:
 		unary_reference_test("acos", half_float::acos);
 		unary_reference_test("atan", half_float::atan);
 		binary_reference_test("atan2", half_float::atan2);
-		BINARY_MATH_TEST(atan2);
 
 		//test hyp functions
 		unary_reference_test("sinh", half_float::sinh);
@@ -232,14 +243,14 @@ public:
 		unary_reference_test("atanh", half_float::atanh);
 
 		//test err functions
-		UNARY_MATH_TEST(erf);
-		UNARY_MATH_TEST(erfc);
-		UNARY_MATH_TEST(lgamma);
-		UNARY_MATH_TEST(tgamma);
 		unary_reference_test("erf", half_float::erf);
 		unary_reference_test("erfc", half_float::erfc);
 		unary_reference_test("lgamma", half_float::lgamma);
 		unary_reference_test("tgamma", half_float::tgamma);
+		UNARY_MATH_TEST(erf);
+		UNARY_MATH_TEST(erfc);
+		UNARY_MATH_TEST(lgamma);
+		UNARY_MATH_TEST(tgamma);
 
 		//test round functions
 		unary_test("ceil", [](half arg) { return comp(ceil(arg), half_cast<half>(std::ceil(half_cast<double>(arg)))); });
@@ -675,14 +686,16 @@ private:
 
 	template<typename F> bool unary_reference_test(const std::string &name, F &&fn)
 	{
-		std::vector<double> reference(std::numeric_limits<std::uint16_t>::max()+1);
+		std::vector<std::pair<half,half>> reference(std::numeric_limits<std::uint16_t>::max()+1);
 		std::ifstream in("reference/"+name, std::ios_base::in|std::ios_base::binary);
+		if(!in)
+			throw std::runtime_error("cannot open reference file for "+name);
 		in.read(reinterpret_cast<char*>(reference.data()), reference.size()*sizeof(reference.front()));
 		double err = 0.0, rel = 0.0; int bin = 0;
 		bool success = unary_test(name, [&,this](half arg) -> bool {
-			double d = reference[h2b(arg)];
-			half a = fn(arg), b = half_cast<half>(d);
-			bool equal = rough_ ? (comp(a, half_cast<half,std::round_toward_infinity>(d)) || comp(a, half_cast<half, std::round_toward_neg_infinity>(d))) : comp(a, b);
+			auto ref = reference[h2b(arg)];
+			half a = fn(arg), b = select<std::numeric_limits<half>::round_style>(ref);
+			bool equal = (rough_||std::numeric_limits<half>::round_style==std::round_indeterminate) ? (comp(a, ref.first) || comp(a, ref.second)) : comp(a, b);
 			if(!equal)
 			{
 				double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
@@ -700,8 +713,10 @@ private:
 
 	template<typename F> bool binary_reference_test(const std::string &name, F &&fn)
 	{
-		struct record { half x, y; double result; };
+		struct record { half x, y; std::pair<half,half> result; };
 		std::ifstream in("reference/"+name, std::ios_base::in|std::ios_base::binary|std::ios_base::ate);
+		if(!in)
+			throw std::runtime_error("cannot open reference file for "+name);
 		unsigned int passed = 0, count = in.tellg() / sizeof(record);
 		std::vector<record> reference(count);
 		in.seekg(0, std::ios_base::beg);
@@ -711,9 +726,9 @@ private:
 		bool success = simple_test(name, [&,this]() -> bool {
 			for(unsigned int i=0; i<count; ++i)
 			{
-				double d = reference[i].result;
-				half x = reference[i].x, y = reference[i].y, a = fn(x, y), b = half_cast<half>(d);
-				bool equal = rough_ ? (comp(a, half_cast<half, std::round_toward_infinity>(d)) || comp(a, half_cast<half, std::round_toward_neg_infinity>(d))) : comp(a, b);
+				auto ref = reference[i];
+				half x = ref.x, y = ref.y, a = fn(x, y), b = select<std::numeric_limits<half>::round_style>(ref.result);
+				bool equal = (rough_||std::numeric_limits<half>::round_style==std::round_indeterminate) ? (comp(a, ref.result.first) || comp(a, ref.result.second)) : comp(a, b);
 				if(!equal)
 				{
 					double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
@@ -735,8 +750,10 @@ private:
 
 	template<typename F> bool ternary_reference_test(const std::string &name, F &&fn)
 	{
-		struct record { half x, y, z; double result; };
+		struct record { half x, y, z; std::pair<half,half> result; };
 		std::ifstream in("reference/"+name, std::ios_base::in|std::ios_base::binary|std::ios_base::ate);
+		if(!in)
+			throw std::runtime_error("cannot open reference file for "+name);
 		unsigned int passed = 0, count = in.tellg() / sizeof(record);
 		std::vector<record> reference(count);
 		in.seekg(0, std::ios_base::beg);
@@ -746,9 +763,9 @@ private:
 		bool success = simple_test(name, [&, this]() -> bool {
 			for(unsigned int i=0; i<count; ++i)
 			{
-				double d = reference[i].result;
-				half x = reference[i].x, y = reference[i].y, z = reference[i].z, a = fn(x, y, z), b = half_cast<half>(d);
-				bool equal = rough_ ? (comp(a, half_cast<half, std::round_toward_infinity>(d)) || comp(a, half_cast<half, std::round_toward_neg_infinity>(d))) : comp(a, b);
+				auto ref = reference[i];
+				half x = ref.x, y = ref.y, z = ref.z, a = fn(x, y, z), b = select<std::numeric_limits<half>::round_style>(ref.result);
+				bool equal = (rough_||std::numeric_limits<half>::round_style==std::round_indeterminate) ? (comp(a, ref.result.first) || comp(a, ref.result.second)) : comp(a, b);
 				if(!equal)
 				{
 					double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
@@ -787,7 +804,7 @@ private:
 	std::chrono::time_point<std::chrono::high_resolution_clock> start_;
 };
 
-int main(int argc, char *argv[])
+int main(int argc, char *argv[]) try
 {
 	switch(std::numeric_limits<half>::round_style)
 	{
@@ -892,4 +909,9 @@ int main(int argc, char *argv[])
 
 	timer time;
 	return test.test();
+}
+catch(const std::exception &e)
+{
+	std::cerr << "ERROR: " << e.what() << '\n';
+	return -1;
 }
