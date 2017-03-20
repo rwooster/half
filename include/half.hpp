@@ -2706,7 +2706,7 @@ namespace half_float
 			std::swap(absy, absz);
 		for(; absx<0x400; absx<<=1, --expx);
 		for(; absy<0x400; absy<<=1, --expy);
-		for(; absz<0x400; absz<<=1, --expy);
+		for(; absz<0x400; absz<<=1, --expz);
 		detail::uint32 mx = (absx&0x3FF) | 0x400, my = (absy&0x3FF) | 0x400, mz = (absz&0x3FF) | 0x400;
 		mx *= mx;
 		my *= my;
@@ -2721,9 +2721,16 @@ namespace half_float
 		int d = expy - expz;
 		mz = (d<30) ? ((mz>>d)|((mz&((1L<<d)-1))!=0)) : 1;
 		my += mz;
-		int i = my >> 31;
-		my = (my>>i) | (my&i);
-		d = expx - expy - i;
+		if(my & 0x80000000)
+		{
+			my = (my>>1) | (my&1);
+			if(++expy > expx)
+			{
+				std::swap(mx, my);
+				std::swap(expx, expy);
+			}
+		}
+		d = expx - expy;
 		my = (d<30) ? ((my>>d)|((my&((1L<<d)-1))!=0)) : 1;
 		return half(detail::binary, detail::hypot_post<half::round_style>(mx+my, expx));
 	}
