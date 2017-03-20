@@ -218,6 +218,7 @@ public:
 		unary_reference_test("asin", half_float::asin);
 		unary_reference_test("acos", half_float::acos);
 		unary_reference_test("atan", half_float::atan);
+		binary_reference_test("atan2", half_float::atan2);
 		BINARY_MATH_TEST(atan2);
 
 		//test hyp functions
@@ -719,7 +720,7 @@ private:
 				if(!equal)
 				{
 					double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
-//					std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
+					std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
 					err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
 				}
 				passed += equal;
