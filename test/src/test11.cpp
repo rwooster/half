@@ -197,35 +197,46 @@ public:
 			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, half_cast<half>(0.0))); });
 
 		//test exponential functions
-		reference_test("exp", half_float::exp);
-		reference_test("exp2", half_float::exp2);
-		reference_test("expm1", half_float::expm1);
-		reference_test("log", half_float::log);
-		reference_test("log10", half_float::log10);
-		reference_test("log1p", half_float::log1p);
-		reference_test("log2", half_float::log2);
+		unary_reference_test("exp", half_float::exp);
+		unary_reference_test("exp2", half_float::exp2);
+		unary_reference_test("expm1", half_float::expm1);
+		unary_reference_test("log", half_float::log);
+		unary_reference_test("log10", half_float::log10);
+		unary_reference_test("log1p", half_float::log1p);
+		unary_reference_test("log2", half_float::log2);
 
 		//test power functions
-		reference_test("sqrt", half_float::sqrt);
-		reference_test("cbrt", half_float::cbrt);
-		BINARY_MATH_TEST(pow);
+		unary_reference_test("sqrt", half_float::sqrt);
+		unary_reference_test("cbrt", half_float::cbrt);
+		binary_reference_test("pow", half_float::pow);
+		binary_reference_test<half(half,half)>("hypot", half_float::hypot);
 
 		//test trig functions
-		reference_test("sin", half_float::sin);
-		reference_test("cos", half_float::cos);
-		reference_test("tan", half_float::tan);
-		UNARY_MATH_TEST(asin);
-		UNARY_MATH_TEST(acos);
-		UNARY_MATH_TEST(atan);
+		unary_reference_test("sin", half_float::sin);
+		unary_reference_test("cos", half_float::cos);
+		unary_reference_test("tan", half_float::tan);
+		unary_reference_test("asin", half_float::asin);
+		unary_reference_test("acos", half_float::acos);
+		unary_reference_test("atan", half_float::atan);
 		BINARY_MATH_TEST(atan2);
 
 		//test hyp functions
-		reference_test("sinh", half_float::sinh);
-		reference_test("cosh", half_float::cosh);
-		reference_test("tanh", half_float::tanh);
-		reference_test("asinh", half_float::asinh);
-		reference_test("acosh", half_float::acosh);
-		reference_test("atanh", half_float::atanh);
+		unary_reference_test("sinh", half_float::sinh);
+		unary_reference_test("cosh", half_float::cosh);
+		unary_reference_test("tanh", half_float::tanh);
+		unary_reference_test("asinh", half_float::asinh);
+		unary_reference_test("acosh", half_float::acosh);
+		unary_reference_test("atanh", half_float::atanh);
+
+		//test err functions
+		UNARY_MATH_TEST(erf);
+		UNARY_MATH_TEST(erfc);
+		UNARY_MATH_TEST(lgamma);
+		UNARY_MATH_TEST(tgamma);
+		unary_reference_test("erf", half_float::erf);
+		unary_reference_test("erfc", half_float::erfc);
+		unary_reference_test("lgamma", half_float::lgamma);
+		unary_reference_test("tgamma", half_float::tgamma);
 
 		//test round functions
 		UNARY_MATH_TEST(ceil);
@@ -269,15 +280,6 @@ public:
 		BINARY_MATH_TEST(fmax);
 		BINARY_MATH_TEST(fdim);
 		TERNARY_MATH_TEST(fma);
-
-		//test power functions
-		BINARY_MATH_TEST(hypot);
-
-		//test err functions
-		UNARY_MATH_TEST(erf);
-		UNARY_MATH_TEST(erfc);
-		UNARY_MATH_TEST(lgamma);
-		UNARY_MATH_TEST(tgamma);
 
 		//test round functions
 		UNARY_MATH_TEST(trunc);
@@ -675,11 +677,11 @@ private:
 		return passed;
 	}
 
-	template<typename F> bool reference_test(const std::string &name, F &&fn)
+	template<typename F> bool unary_reference_test(const std::string &name, F &&fn)
 	{
 		std::vector<double> reference(std::numeric_limits<std::uint16_t>::max()+1);
 		std::ifstream in("reference/"+name, std::ios_base::in|std::ios_base::binary);
-		in.read(reinterpret_cast<char*>(reference.data()), reference.size()*sizeof(double));
+		in.read(reinterpret_cast<char*>(reference.data()), reference.size()*sizeof(reference.front()));
 		double err = 0.0, rel = 0.0; int bin = 0;
 		bool success = unary_test(name, [&,this](half arg) -> bool {
 			double d = reference[h2b(arg)];
@@ -693,6 +695,39 @@ private:
 			}
 			return equal;
 		});
+		if(err != 0.0 || rel != 0.0)
+			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n';
+		return success;
+	}
+
+	template<typename F> bool binary_reference_test(const std::string &name, F &&fn)
+	{
+		struct record { half x, y; double result; };
+		std::ifstream in("reference/"+name, std::ios_base::in|std::ios_base::binary|std::ios_base::ate);
+		unsigned int passed = 0, count = in.tellg() / sizeof(record);
+		std::vector<record> reference(count);
+		in.seekg(0, std::ios_base::beg);
+		in.clear();
+		in.read(reinterpret_cast<char*>(reference.data()), reference.size()*sizeof(reference.front()));
+		double err = 0.0, rel = 0.0; int bin = 0;
+		bool success = simple_test(name, [&,this]() -> bool {
+			for(unsigned int i=0; i<count; ++i)
+			{
+				double d = reference[i].result;
+				half x = reference[i].x, y = reference[i].y, a = fn(x, y), b = half_cast<half>(d);
+				bool equal = rough_ ? (comp(a, half_cast<half, std::round_toward_infinity>(d)) || comp(a, half_cast<half, std::round_toward_neg_infinity>(d))) : comp(a, b);
+				if(!equal)
+				{
+					double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
+//					std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
+					err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
+				}
+				passed += equal;
+			}
+			return passed == count;
+		});
+		if(passed != count)
+			std::cout << (count-passed) << " of " << count << " failed\n";
 		if(err != 0.0 || rel != 0.0)
 			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n';
 		return success;
@@ -806,17 +841,17 @@ int main(int argc, char *argv[])
 			return 0;
 	}
 */
-	std::vector<std::string> args(argv, argv+argc);
+	std::vector<std::string> args(argv+1, argv+argc);
 	std::unique_ptr<std::ostream> file;
 	bool fast = false, rough = false;
-	for(auto iter=std::next(args.begin()); iter!=args.end(); ++iter)
+	for(auto &&arg : args)
 	{
-		if(*iter == "-fast")
+		if(arg == "-fast")
 			fast = true;
-		else if(*iter == "-rough")
+		else if(arg == "-rough")
 			rough = true;
 		else
-			file.reset(new std::ofstream(*iter));
+			file.reset(new std::ofstream(arg));
 	}
 	half_test test(file ? *file : std::cout, fast, rough);
 

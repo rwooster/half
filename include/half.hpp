@@ -1449,7 +1449,7 @@ namespace half_float
 			if(exp < -34)
 				return underflow<R>(0);
 			uint32 m = sqrt<30>(r, exp+=15);
-			return fixed2half<R,11,false,false>(m>>4, exp-1, 0, (r|(m&0xF))!=0);
+			return fixed2half<R,15,false,false>(m, exp-1, 0, r!=0);
 		}
 
 		/// Division and postprocessing for tangents.
@@ -2744,8 +2744,10 @@ namespace half_float
 				0x3C00 : (0x7C00&-((y.data_>>15)^(absx>0x3C00)))) : half(detail::binary, value|(0x7C00&((y.data_>>15)-1U))));
 		if(!absx)
 			return half(detail::binary, value|(0x7C00&-(y.data_>>15)));
-		if(x.data_ & 0x8000 && !is_int)
+		if((x.data_&0x8000) && !is_int)
 			return half(detail::binary, 0x7FFF);
+		if(x.data_ == 0xBC00)
+			return half(detail::binary, value|0x3C00);
 		int ilog = -15, exp = -11;
 		for(; absx<0x400; absx<<=1,--ilog) ;
 		for(; absy<0x400; absy<<=1,--exp) ;
