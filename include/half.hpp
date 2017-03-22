@@ -1527,94 +1527,63 @@ namespace half_float
 		}
 
 		/// Error function and postprocessing.
-		/// This computes the value directly in Q1.31 using the approximation `|erf(x)| = sqrt(1-exp(-x^2*(4/PI+0.147x^2)/(1+0.147x^2)))`
+		/// This computes the value directly in Q1.31 using the approximations given 
+		/// [here](https://en.wikipedia.org/wiki/Error_function#Approximation_with_elementary_functions).
 		/// \param arg function argument
 		/// \return approximated value of error function
 		template<std::float_round_style R,bool C> uint16 erf(uint16 arg)
 		{
-			int abs = arg & 0x7FFF, exp = 0, i;
-			for(; abs<0x400; abs<<=1,--exp) ;
-			exp += abs >> 10;
-			uint32 mx2 = ((abs&0x3FF)|0x400) << 5, m;
-			mx2 *= mx2;
-			i = mx2 >> 31;
-			mx2 <<= 1 - i;
-			exp = 2*exp + i;
-			int d = 3 - exp, s;// = 1;
-
-			uint32 max2 = multiply64(mx2, 0x96872B02);
-			if(!(max2&0x80000000))
+			struct q31 { uint32 m; int exp; };
+			static const q31 a[] = { { 0x906E675B, -4}, { 0xAD2FE741, -5}, { 0x97E368C9, -7}, { 0x9F660727, -13}, { 0x910038A2, -12},{ 0xB49F6736, -15} };
+			q31 x[7];
+			int abs = arg & 0x7FFF, exp = -15, p, s;
+			for(; abs<0x400; abs<<=1, --exp);
+			x[0] = { 0x80000000, 0 };
+			x[1] = { static_cast<uint32>((abs&0x3FF)|0x400)<<21, exp+(abs>>10) };
+			for(p=2; p<7; ++p)
 			{
-				max2 = ((max2+1)>>1) | 0x80000000;
-				--d;
+				uint32 m = multiply64(x[p-1].m, x[1].m);
+				int i = m >> 31;
+				x[p] = { m<<(1-i), x[p-1].exp+x[1].exp+i };
 			}
-
-			if(d < 31)
+			for(p=1; p<7; ++p)
 			{
-				max2 = (max2>>d) | ((max2&((1UL<<d)-1))!=0);
-				uint32 my = 0xA2F9836E + max2, mx = 0x80000000 + max2;
-				if(!(my&0x80000000))
-				{
-					my = (my>>1) | 0x80000000;
-					++exp;
-					if(!(mx&0x80000000))
-					{
-						mx = (mx>>1) | 0x80000000;
-						--exp;
-					}
-				}
-				m = detail::divide64(my>>1, mx, s);
-				m = multiply64(m, 0xB8AA3B29);
-				i = m >> 31;
-//				s |= m & i;
-				m >>= i;
-				exp += i;
+				uint32 m = multiply64(x[p].m, a[p-1].m);
+				int i = m >> 31;
+				x[p] = { m<<(1-i), x[p].exp+a[p-1].exp+i };
 			}
-			else
-				m = 0xEB1F6BA5;
-			++exp;
-			m = multiply64(mx2, m);
-			i = m >> 31;
-//			s |= m & i;
-			m >>= i;
-			exp += i;
-			if(exp > -1)
+			for(p=1; p<7; ++p)
+				for(int q=p; q-->0 && x[q+1].exp>x[q].exp;) 
+					std::swap(x[q], x[q+1]);
+			q31 y = x[6];
+			for(p=6; p-->0;)
 			{
-				d = m >> (30-exp);
-				m = (m<<(exp+1)) & 0x7FFFFFFF;
+				q31 ax = x[p];
+				if(y.exp > ax.exp)
+					std::swap(ax, y);
+				int d = ax.exp - y.exp;
+				uint32 m = ax.m + ((d<31) ? ((y.m>>d)|((y.m&((1L<<d)-1))!=0)) : 1);
+				int i = (m&0xFFFFFFFF) < ax.m;
+				y = { (m>>i)|(m&i)|0x80000000, ax.exp+i };
 			}
-			else
+			for(p=0; p<4; ++p)
 			{
-				d = 0;
-				m >>= -exp - 1;
+				uint32 m = multiply64(y.m, y.m);
+				int i = m >> 31;
+				y = { m<<(1-i), 2*y.exp+i };
 			}
-			detail::exp2(m);
-
-			if(m > 0x80000000)
-			{
-				m = detail::divide64(0x80000000, m, s);
-				m |= s;
-				++d;
-			}
+			uint32 m = divide64(0x40000000, y.m, s);
+			m |= s;
+			exp = -y.exp - 1;
 			uint16 value = arg & 0x8000;
-			uint32 r = 0x40000000 - ((d<31) ? ((m>>(d+1))|((m&((1UL<<(d+1))-1))!=0)) : 1);
-			if(!r)
-				return C ? 0x3C00 : underflow<R>(value);
-			for(exp=0; r<0x40000000; r<<=1,--exp) ;
-			m = sqrt<30>(r, exp);
-			if(!C)
-				return fixed2half<R,31,false,false>(m, exp+14, value, r!=0);
-			m = 0x8000 - ((m>>-exp)|(r!=0));
-			return fixed2half<R,15,false,true>(m, 14, value);
-		}
-
-		/// Error function.
-		/// \param arg function argument
-		/// \return approximated value of error function
-		inline double erf(double arg)
-		{
-			double x2 = arg * arg, ax2 = 0.147 * x2, value = std::sqrt(1.0-std::exp(-x2*(1.2732395447351626861510701069801+ax2)/(1.0+ax2)));
-			return builtin_signbit(arg) ? -value : value;
+			if(C && !value)
+			{
+				if(exp < -25)
+					return underflow<R>(0);
+				return fixed2half<R,30,false,false>(m, exp+14);
+			}
+			int d = C - exp - 1;
+			return fixed2half<R,31,false,true>(0x80000000-((d<31) ? ((m>>d)|((m&((1L<<d)-1))!=0)) : 1), 14+C, value<<C);
 		}
 
 		/// Logarithm of gamma function.
@@ -1673,6 +1642,7 @@ namespace half_float
 		friend half fmax(half, half);
 		friend half fmin(half, half);
 		friend half fdim(half, half);
+		friend half nanh(const char*);
 		friend half exp(half);
 		friend half expm1(half);
 		friend half exp2(half);
@@ -1685,7 +1655,7 @@ namespace half_float
 		friend half hypot(half, half);
 		friend half hypot(half, half, half);
 		friend half pow(half, half);
-		friend std::pair<half,half> sincos(half);
+		friend void sincos(half, half*, half*);
 		friend half sin(half);
 		friend half cos(half);
 		friend half tan(half);
@@ -1916,7 +1886,7 @@ namespace std
 		/// Supports quiet NaNs.
 		static HALF_CONSTEXPR_CONST bool has_quiet_NaN = true;
 
-		/// Supports signaling NaNs.
+		/// Supports signaling NaNs (even though they never actually signal ;-)).
 		static HALF_CONSTEXPR_CONST bool has_signaling_NaN = true;
 
 		/// Supports subnormal values.
@@ -2162,8 +2132,7 @@ namespace half_float
 			return half(detail::binary, detail::overflow<half::round_style>(value));
 		else if(exp < -11)
 			return half(detail::binary, detail::underflow<half::round_style>(value));
-		m >>= i;
-		return half(detail::binary, detail::fixed2half<half::round_style,20,false,false>(m, exp, value, s));
+		return half(detail::binary, detail::fixed2half<half::round_style,20,false,false>(m>>i, exp, value, s));
 	}
 
 	/// Divide halfs.
@@ -2395,7 +2364,7 @@ namespace half_float
 
 	/// Get NaN value.
 	/// \return quiet NaN
-	inline half nanh(const char*) { return std::numeric_limits<half>::quiet_NaN(); }
+	inline half nanh(const char*) { return half(detail::binary, 0x7FFF); }
 
 	/// \}
 	/// \name Exponential functions
@@ -2797,24 +2766,30 @@ namespace half_float
 	/// \name Trigonometric functions
 	/// \{
 
-	/// Sine cosine function.
+	/// Compute sine and cosine simultaneously.
 	/// \param arg function argument
-	/// \return sine and cosine of \a arg
-	inline std::pair<half,half> sincos(half arg)
+	/// \param sin variable to take sine of \a arg
+	/// \param cos variable to take cosine of \a arg
+	inline void sincos(half arg, half *sin, half *cos)
 	{
 		int abs = arg.data_ & 0x7FFF;
 		if(abs >= 0x7C00)
-			return std::make_pair(half(detail::binary, 0x7FFF), half(detail::binary, 0x7FFF));
-		if(!abs)
-			return std::make_pair(arg, half(detail::binary, 0x3C00));
+			{ *sin = half(detail::binary, 0x7FFF); *cos = half(detail::binary, 0x7FFF); }
+		else if(!abs)
+			{ *sin = arg; *cos = half(detail::binary, 0x3C00); }
 
-		if(abs > 0x3E48)
-			return std::make_pair(half(detail::binary, detail::float2half<half::round_style>(std::sin(detail::half2float<double>(arg.data_)))), 
-				half(detail::binary, detail::float2half<half::round_style>(std::cos(detail::half2float<double>(arg.data_)))));
+		else if(abs > 0x3E48)
+		{
+			*sin = half(detail::binary, detail::float2half<half::round_style>(std::sin(detail::half2float<double>(arg.data_))));
+			*cos = half(detail::binary, detail::float2half<half::round_style>(std::cos(detail::half2float<double>(arg.data_))));
+		}
 
-		std::pair<detail::uint16,detail::uint16> sc = detail::sincos(arg.data_);
-		return std::make_pair(half(detail::binary, detail::fixed2half<half::round_style,30,true,true>(sc.first)), 
-			half(detail::binary, detail::fixed2half<half::round_style,30,true,true>(sc.second)));
+		else
+		{
+			std::pair<detail::uint16,detail::uint16> sc = detail::sincos(arg.data_);
+			*sin = half(detail::binary, detail::fixed2half<half::round_style,30,true,true>(sc.first));
+			*cos = half(detail::binary, detail::fixed2half<half::round_style,30,true,true>(sc.second));
+		}
 	}
 
 	/// Sine function.
@@ -3079,12 +3054,9 @@ namespace half_float
 		detail::uint16 value = arg.data_ & 0x8000;
 		if(!abs || abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, value|0x3C00) : arg;
-
 		if(abs > 0x4200)
 			return half(detail::binary, detail::rounded<half::round_style>(value|0x3BFF, 1, 1));
-
-		return half(detail::binary, detail::erf<half::round_style, false>(arg.data_));
-		return half(detail::binary, detail::float2half<half::round_style>(std::erf(detail::half2float<double>(arg.data_))));
+		return half(detail::binary, detail::erf<half::round_style,false>(arg.data_));
 	}
 
 	/// Complementary error function.
@@ -3096,12 +3068,11 @@ namespace half_float
 		detail::uint16 value = arg.data_ & 0x8000;
 		if(abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, value>>1) : arg;
-
-		if(abs >= 0x4200)
+		if(!abs)
+			return half(detail::binary, 0x3C00);
+		if(abs > 0x4400)
 			return half(detail::binary, detail::rounded<half::round_style>((value>>1)-(value>>15), value>>15, 1));
-
-//		return half(detail::binary, detail::float2half<half::round_style>(1.0-detail::erf(detail::half2float<double>(arg.data_))));
-		return half(detail::binary, detail::float2half<half::round_style>(std::erfc(detail::half2float<double>(arg.data_))));
+		return half(detail::binary, detail::erf<half::round_style,true>(arg.data_));
 	}
 
 	/// Natural logarithm of gamma function.

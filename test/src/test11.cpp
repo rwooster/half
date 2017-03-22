@@ -105,7 +105,7 @@ template<std::float_round_style R> half select(const std::pair<half,half> &hh)
 	if(R == std::round_toward_infinity)
 		return (hh.second>hh.first) ? hh.second : hh.first;
 	if(R == std::round_toward_neg_infinity)
-		return (hh.second<hh.first) ? hh.second : hh.first;
+		return (hh.second<=hh.first) ? hh.second : hh.first;
 	return hh.first;
 }
 
@@ -208,6 +208,7 @@ public:
 		binary_test("fdim", [](half a, half b) -> bool { half c = fdim(a, b); return isnan(a) || isnan(b) || 
 			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, half_cast<half>(0.0))); });
 		ternary_test("fma", [](half x, half y, half z) { return comp(fma(x, y, z), half_cast<half>(half_cast<double>(x)*half_cast<double>(y)+half_cast<double>(z))); });
+//		ternary_reference_test("fma", half_float::fma);
 
 		//test exponential functions
 		unary_reference_test("exp", half_float::exp);
@@ -241,15 +242,13 @@ public:
 		unary_reference_test("asinh", half_float::asinh);
 		unary_reference_test("acosh", half_float::acosh);
 		unary_reference_test("atanh", half_float::atanh);
-
+*/
 		//test err functions
 		unary_reference_test("erf", half_float::erf);
 		unary_reference_test("erfc", half_float::erfc);
-		unary_reference_test("lgamma", half_float::lgamma);
+/*		unary_reference_test("lgamma", half_float::lgamma);
 		unary_reference_test("tgamma", half_float::tgamma);
-		UNARY_MATH_TEST(erf);
-		UNARY_MATH_TEST(erfc);
-		UNARY_MATH_TEST(lgamma);
+/*		UNARY_MATH_TEST(lgamma);
 		UNARY_MATH_TEST(tgamma);
 
 		//test round functions
@@ -880,18 +879,26 @@ int main(int argc, char *argv[]) try
 	return 0;
 
 	using namespace half_float::literal;
-	double d;
 	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << std::llrint(std::ldexp(1.2732395447351626861510701069801l*std::log2(2.7182818284590452353602874713527l), 35)) << '\n';
+	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << std::llrint(std::ldexp(0.14001228868666660600424949138612l, 38)) << '\n';
 	return 0;
 
 	using namespace half_float::literal;
-	for(std::uint16_t i=0; i<0x7C00; ++i)
+	for(std::uint16_t i=0x3C00; i<0x7C00; ++i)
 	{
-		half x = b2h(i), y = half_cast<half,std::round_toward_zero>(std::erf(half_cast<double>(x)));
+		half x = b2h(i), y = half_cast<half,std::round_toward_neg_infinity>(std::erfc(half_cast<double>(x)));
 		std::cout << x << " (" << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << i << std::dec << ")\t= " << y << '\n';
-		if(y >= 1.0_h)
+		if(y == 0.0_h)
 			return 0;
 	}
+
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0705230784l, 31+4)) << '\n';
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0422820123l, 31+5)) << '\n';
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0092705272l, 31+7)) << '\n';
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0001520143l, 31+13)) << '\n';
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0002765672l, 31+12)) << '\n';
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0000430638l, 31+15)) << '\n';
+	return 0;
 */
 	std::vector<std::string> args(argv+1, argv+argc);
 	std::unique_ptr<std::ostream> file;
