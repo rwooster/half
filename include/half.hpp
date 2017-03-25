@@ -766,10 +766,10 @@ namespace half_float
 				value = static_cast<uint16>(sign) & 0x8000;
 			}
 			if(N)
-				for(; m<(1UL<<F) && exp; m<<=1,--exp) ;
+				for(; m<(static_cast<uint32>(1)<<F) && exp; m<<=1,--exp) ;
 			else if(exp < 0)
-				return rounded<R>(value|(m>>(F-10-exp)), (m>>(F-11-exp))&1, s|((m&((1UL<<(F-11-exp))-1))!=0));
-			return rounded<R>(value|(exp<<10)+(m>>(F-10)), (m>>(F-11))&1, s|(((m&((1UL<<(F-11))-1)))!=0));
+				return rounded<R>(value|(m>>(F-10-exp)), (m>>(F-11-exp))&1, s|((m&((static_cast<uint32>(1)<<(F-11-exp))-1))!=0));
+			return rounded<R>(value|(exp<<10)+(m>>(F-10)), (m>>(F-11))&1, s|(((m&((static_cast<uint32>(1)<<(F-11))-1)))!=0));
 		}
 
 		/// Convert half-precision to IEEE single-precision.
@@ -1080,6 +1080,21 @@ namespace half_float
 		/// \name Mathematics
 		/// \{
 
+		/// 64bit multiplication.
+		/// \param x first factor
+		/// \param y second factor
+		/// \return \a x * \a y rounded to nearest
+		inline uint32 multiply64(uint32 x, uint32 y)
+		{
+		#if HALF_ENABLE_CPP11_LONG_LONG
+			unsigned long long m = static_cast<unsigned long long>(x) * static_cast<unsigned long long>(y);
+			return static_cast<uint32>(m>>32) + ((static_cast<uint32>(m)>>31)&1);
+		#else
+			uint32 xy = (x>>16) * (y&0xFFFF), yx = (x&0xFFFF) * (y>>16), c = (xy&0xFFFF) + (yx&0xFFFF) + (((x&0xFFFF)*(y&0xFFFF))>>16);
+			return (x>>16)*(y>>16) + (xy>>16) + (yx>>16) + (c>>16) + ((c>>15)&1);
+		#endif
+		}
+
 		/// 64bit division.
 		/// \param x upper 32bit of dividend
 		/// \param y divisor
@@ -1104,21 +1119,6 @@ namespace half_float
 				rem <<= 1;
 			}
 			return s = rem > 1, div;
-		#endif
-		}
-
-		/// 64bit multiplication.
-		/// \param x first factor
-		/// \param y second factor
-		/// \return \a x * \a y rounded to nearest
-		inline uint32 multiply64(uint32 x, uint32 y)
-		{
-		#if HALF_ENABLE_CPP11_LONG_LONG
-			unsigned long long m = static_cast<unsigned long long>(x) * static_cast<unsigned long long>(y);
-			return static_cast<uint32>(m>>32) + ((static_cast<uint32>(m)>>31)&1);
-		#else
-			uint32 xy = (x>>16) * (y&0xFFFF), yx = (x&0xFFFF) * (y>>16), c = (xy&0xFFFF) + (yx&0xFFFF) + (((x&0xFFFF)*(y&0xFFFF))>>16);
-			return (x>>16)*(y>>16) + (xy>>16) + (yx>>16) + (c>>16) + ((c>>15)&1);
 		#endif
 		}
 
@@ -1206,7 +1206,7 @@ namespace half_float
 			r <<= i;
 			exp = (exp-i) / 2;
 			uint32 m = 0;
-			for(uint32 bit=1UL<<F; bit; bit>>=2)
+			for(uint32 bit=static_cast<uint32>(1)<<F; bit; bit>>=2)
 			{
 				if(r < m+bit)
 					m >>= 1;
@@ -1336,7 +1336,7 @@ namespace half_float
 			exp += abs >> 10;
 			uint32 my = ((abs&0x3FF)|0x400) << 5, r = my * my;
 			int rexp = 2 * exp;
-			r = 0x40000000 - ((rexp>-31) ? ((r>>-rexp)|((r&((1UL<<-rexp)-1))!=0)) : 1);
+			r = 0x40000000 - ((rexp>-31) ? ((r>>-rexp)|((r&((static_cast<uint32>(1)<<-rexp)-1))!=0)) : 1);
 			for(rexp=0; r<0x40000000; r<<=1,--rexp) ;
 			uint32 mx = detail::sqrt<30>(r, rexp);
 			mx += r > mx;
@@ -1376,7 +1376,7 @@ namespace half_float
 			}
 			else
 				my = mx;
-			return std::make_pair(mx, (d<31) ? ((my>>d)|((my&((1UL<<d)-1))!=0)) : 1UL);
+			return std::make_pair(mx, (d<31) ? ((my>>d)|((my&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
 		}
 
 		/// Postprocessing for binary exponential.
@@ -1421,16 +1421,11 @@ namespace half_float
 				return 0;
 			for(; m<0x80000000; m<<=1,--exp) ;
 			int i = m >= L, s;
-			if(L != 0x80000000)
-			{
-				exp += i;
-				m >>= 1 + i;
-			}
+			exp += i;
+			m >>= 1 + i;
 			uint16 value = static_cast<unsigned>(sign) << 15;
 			if(exp < -11)
 				return underflow<R>(value);
-			if(L == 0x80000000)
-				return fixed2half<R,31,false,false>(m, exp, value);
 			m = divide64(m, L, s);
 			return fixed2half<R,30,false,false>(m, exp, value, 1);
 		}
@@ -1444,11 +1439,11 @@ namespace half_float
 		template<std::float_round_style R> uint16 hypot_post(uint32 r, int exp)
 		{
 			int i = r >> 31;
-			r = (r>>i) | (r&i);
 			if((exp+=i) > 46)
 				return overflow<R>(0);
 			if(exp < -34)
 				return underflow<R>(0);
+			r = (r>>i) | (r&i);
 			uint32 m = sqrt<30>(r, exp+=15);
 			return fixed2half<R,15,false,false>(m, exp-1, 0, r!=0);
 		}
@@ -1493,7 +1488,7 @@ namespace half_float
 			{
 				if(expy < 0)
 				{
-					r = 0x40000000 + ((expy>-30) ? ((r>>-expy)|((r&((1UL<<-expy)-1))!=0)) : 1);
+					r = 0x40000000 + ((expy>-30) ? ((r>>-expy)|((r&((static_cast<uint32>(1)<<-expy)-1))!=0)) : 1);
 					expy = 0;
 				}
 				else
@@ -2380,6 +2375,14 @@ namespace half_float
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00&((arg.data_>>15)-1U)) : arg;
 		if(!abs)
 			return half(detail::binary, 0x3C00);
+/*
+		float f = std::exp(detail::half2float<float>(arg.data_));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(0));
+		if(f == 0.0f)
+			return half(detail::binary, detail::underflow<half::round_style>(0));
+		return half(f);
+*/
 		detail::uint32 m = detail::multiply64(static_cast<detail::uint32>((abs&0x3FF)+((abs>0x3FF)<<10))<<21, 0xB8AA3B29);
 		int e = (abs>>10) + (abs<=0x3FF), exp;
 		if(e < 14)
@@ -2405,6 +2408,14 @@ namespace half_float
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00&((arg.data_>>15)-1U)) : arg;
 		if(!abs)
 			return half(detail::binary, 0x3C00);
+/*
+		float f = std::exp(detail::half2float<float>(arg.data_)*0.69314718055994530941723212145818f);
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(0));
+		if(f == 0.0f)
+			return half(detail::binary, detail::underflow<half::round_style>(0));
+		return half(f);
+*/
 		detail::uint32 m;
 		int e = (abs>>10) + (abs<=0x3FF), exp = (abs&0x3FF) + ((abs>0x3FF)<<10);
 		if(e < 25)
@@ -2429,6 +2440,14 @@ namespace half_float
 		detail::uint16 value = arg.data_ & 0x8000;
 		if(abs >= 0x7C00 || !abs)
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00+(value>>1)) : arg;
+/*
+		double f = std::exp(detail::half2float<float>(arg.data_));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(0));
+		if(f == 0.0)
+			return half(detail::binary, detail::rounded<half::round_style>(0x3BFF, 1, 1));
+		return half(detail::binary, detail::float2half<half::round_style>(f-1.0));
+*/
 		detail::uint32 m = detail::multiply64(static_cast<detail::uint32>((abs&0x3FF)+((abs>0x3FF)<<10))<<21, 0xB8AA3B29);
 		int e = (abs>>10) + (abs<=0x3FF), exp;
 		if(e < 14)
@@ -2450,7 +2469,7 @@ namespace half_float
 				++exp;
 				m = detail::divide64(0x80000000, m, s);
 			}
-			m = 0x80000000 - ((exp<31) ? ((m>>exp)|((m&((1UL<<exp)-1))!=0)|s) : 1);
+			m = 0x80000000 - ((exp<31) ? ((m>>exp)|((m&((static_cast<detail::uint32>(1)<<exp)-1))!=0)|s) : 1);
 			exp = 0;
 		}
 		else
@@ -2475,10 +2494,16 @@ namespace half_float
 			return half(detail::binary, 0x7FFF);
 		if(abs >= 0x7C00)
 			return arg;
+/*
+		float f = std::log(detail::half2float<float>(arg.data_));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		return half(f);
+*/
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
 		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(
-			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400UL)<<20, ilog, 27), 17, ilog<0));
+			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 27), 17, ilog<0));
 	}
 
 	/// Common logarithm.
@@ -2493,6 +2518,12 @@ namespace half_float
 			return half(detail::binary, 0x7FFF);
 		if(abs >= 0x7C00)
 			return arg;
+/*
+		float f = std::log10(detail::half2float<float>(arg.data_));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		return half(f);
+*/
 		if(half::round_style != std::round_to_nearest)
 		{
 			switch(abs)
@@ -2506,7 +2537,7 @@ namespace half_float
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
 		return half(detail::binary, detail::log2_post<half::round_style,0xD49A784C>(
-			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400UL)<<20, ilog, 27), 16, ilog<0));
+			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 27), 16, ilog<0));
 	}
 
 	/// Natural logarithm.
@@ -2521,6 +2552,12 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF, ilog = -15;
 		if(!abs || abs >= 0x7C00)
 			return arg;
+/*
+		double f = std::log(detail::half2float<double>(arg.data_)+1.0);
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		return half(detail::binary, detail::float2half<half::round_style>(f));
+*/
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
 		detail::uint32 m = static_cast<detail::uint32>((abs&0x3FF)|0x400) << 20;
@@ -2559,6 +2596,12 @@ namespace half_float
 			return half(detail::binary, 0x7FFF);
 		if(abs >= 0x7C00)
 			return arg;
+/*
+		float f = std::log2(detail::half2float<float>(arg.data_));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		return half(f/1.4426950408889634073599246810019f);
+*/
 		for(; abs<0x400; abs<<=1,--ilog) ;
 		ilog += abs >> 10;
 		detail::uint32 m = detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 28);
@@ -2651,6 +2694,14 @@ namespace half_float
 			return half(detail::binary, (absx==0x7C00 || absy==0x7C00) ? 0x7C00 : 0x7FFF);
 		if(absy > absx)
 			std::swap(absx, absy);
+/*
+		double dx = detail::half2float<double>(x.data_), dy = detail::half2float<double>(y.data_), f = std::sqrt(dx*dx+dy*dy);
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(0));
+		if(f == 0.0)
+			return half(detail::binary, detail::underflow<half::round_style>(0));
+		return half(detail::binary, detail::float2half<half::round_style>(f));
+*/
 		for(; absx<0x400; absx<<=1,--expx) ;
 		for(; absy<0x400; absy<<=1,--expy) ;
 		detail::uint32 mx = (absx&0x3FF) | 0x400, my = (absy&0x3FF) | 0x400;
@@ -2739,6 +2790,14 @@ namespace half_float
 			return half(detail::binary, 0x7FFF);
 		if(x.data_ == 0xBC00)
 			return half(detail::binary, value|0x3C00);
+/*
+		float r = std::pow(detail::half2float<float>(x.data_), detail::half2float<float>(y.data_));
+		if(detail::builtin_isinf(r))
+			return half(detail::binary, detail::overflow<half::round_style>(value));
+		if(r == 0.0f)
+			return half(detail::binary, detail::underflow<half::round_style>(value));
+		return half(r);
+*/
 		int ilog = -15, exp = -11;
 		for(; absx<0x400; absx<<=1,--ilog) ;
 		for(; absy<0x400; absy<<=1,--exp) ;
@@ -2876,7 +2935,7 @@ namespace half_float
 			return half(detail::binary, (abs==0x3C00) ? (detail::rounded<half::round_style>(0x4248, 0, 1)&-static_cast<unsigned>(sign)) : 0x7FFF);
 		std::pair<detail::uint32,detail::uint32> cs = detail::atan2_args(abs);
 		detail::uint32 m = detail::atan2(cs.second, cs.first);
-		return half(detail::binary, detail::fixed2half<half::round_style,31,false,true>(sign ? (0xC90FDAA2UL-m) : m, 15, 0, sign));
+		return half(detail::binary, detail::fixed2half<half::round_style,31,false,true>(sign ? (0xC90FDAA2-m) : m, 15, 0, sign));
 	}
 
 	/// Arc tangent function.
@@ -2946,6 +3005,14 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF, exp;
 		if(!abs || abs >= 0x7C00)
 			return arg;
+/*
+		float f = std::sinh(detail::half2float<float>(arg.data_));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		if(f == 0.0f)
+			return half(detail::binary, detail::underflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		return half(f);
+*/
 		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 32);
 		detail::uint32 m = mm.first - mm.second;
 		for(exp+=13; m<0x80000000 && exp; m<<=1,--exp) ;
@@ -2965,6 +3032,14 @@ namespace half_float
 			return half(detail::binary, 0x3C00);
 		if(abs >= 0x7C00)
 			return half(detail::binary, 0x7C00|-static_cast<unsigned>(abs>0x7C00));
+/*
+		float f = std::cosh(detail::half2float<float>(arg.data_));
+		if(f == 1.0f)
+			return half(detail::binary, detail::rounded<half::round_style>(0x3C00, 0, 1));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(0));
+		return half(f);
+*/
 		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 23);
 		detail::uint32 m = mm.first + mm.second;
 		if(!(m&0x80000000))
@@ -2985,6 +3060,14 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF, exp;
 		if(!abs || abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, arg.data_-0x4000) : arg;
+/*
+		float f = std::tanh(detail::half2float<float>(arg.data_));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		if(f == 0.0f)
+			return half(detail::binary, detail::underflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		return half(f);
+*/
 		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 27);
 		detail::uint32 my = mm.first - mm.second, mx = mm.first + mm.second;
 		for(exp=13; my<0x80000000; my<<=1,--exp) ;
@@ -3004,6 +3087,15 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF;
 		if(!abs || abs >= 0x7C00)
 			return arg;
+/*
+		double f = detail::half2float<double>(arg.data_);
+		f = std::log(f+std::sqrt(f*f+1.0));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		if(f == 0.0)
+			return half(detail::binary, detail::underflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		return half(detail::binary, detail::float2half<half::round_style>(f));
+*/
 		return half(detail::binary, detail::area<half::round_style,true>(arg.data_));
 	}
 
@@ -3017,6 +3109,15 @@ namespace half_float
 			return half(detail::binary, -static_cast<unsigned>(arg.data_!=0x3C00));
 		if(arg.data_ >= 0x7C00)
 			return arg;
+/*
+		double f = detail::half2float<double>(arg.data_);
+		f = std::log(f+std::sqrt(f*f-1.0));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(0));
+		if(f == 0.0)
+			return half(detail::binary, detail::underflow<half::round_style>(0));
+		return half(detail::binary, detail::float2half<half::round_style>(f));
+*/
 		return half(detail::binary, detail::area<half::round_style,false>(arg.data_));
 	}
 
@@ -3030,6 +3131,15 @@ namespace half_float
 			return arg;
 		if(abs >= 0x3C00)
 			return half(detail::binary, (abs==0x3C00) ? (arg.data_+0x4000) : 0x7FFF);
+/*
+		double f = detail::half2float<double>(arg.data_);
+		f = 0.5 * std::log((1.0+f)/(1.0-f));
+		if(detail::builtin_isinf(f))
+			return half(detail::binary, detail::overflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		if(f == 0.0)
+			return half(detail::binary, detail::underflow<half::round_style>(detail::builtin_signbit(f)<<15));
+		return half(detail::binary, detail::float2half<half::round_style>(f));
+*/
 		detail::uint32 m = static_cast<detail::uint32>((abs&0x3FF)|((abs>0x3FF)<<10)) << (exp+6), my = 0x80000000 + m, mx = 0x80000000 - m;
 		for(exp=0; mx<0x80000000; mx<<=1,++exp) ;
 		if(arg.data_ & 0x8000)
@@ -3051,11 +3161,28 @@ namespace half_float
 	inline half erf(half arg)
 	{
 		int abs = arg.data_ & 0x7FFF;
-		detail::uint16 value = arg.data_ & 0x8000;
+		detail::uint16 sign = arg.data_ & 0x8000;
 		if(!abs || abs >= 0x7C00)
-			return (abs==0x7C00) ? half(detail::binary, value|0x3C00) : arg;
+			return (abs==0x7C00) ? half(detail::binary, sign|0x3C00) : arg;
+/*
+		double a[] = { 0.0705230784, 0.0422820123, 0.0092705272, 0.0001520143, 0.0002765672, 0.0000430638 };
+		double x[6];
+		x[0] = detail::half2float<double>(abs);
+		for(unsigned int i=1; i<6; ++i)
+			x[i] = x[i-1] * x[0];
+		double f = 1.0;
+		for(unsigned int i=0; i<6; ++i)
+			f += x[i] * a[i];
+		f *= f; f *= f; f *= f; f *= f;
+		f = 1.0 - 1.0/f;
+		if(f == 1.0)
+			return half(detail::binary, detail::rounded<half::round_style>(sign|0x3BFF, 1, 1));
+		if(f == 0.0)
+			return half(detail::binary, detail::underflow<half::round_style>(sign));
+		return half(detail::binary, sign|detail::float2half<half::round_style>(f));
+*/
 		if(abs > 0x4200)
-			return half(detail::binary, detail::rounded<half::round_style>(value|0x3BFF, 1, 1));
+			return half(detail::binary, detail::rounded<half::round_style>(sign|0x3BFF, 1, 1));
 		return half(detail::binary, detail::erf<half::round_style,false>(arg.data_));
 	}
 
@@ -3065,13 +3192,36 @@ namespace half_float
 	inline half erfc(half arg)
 	{
 		int abs = arg.data_ & 0x7FFF;
-		detail::uint16 value = arg.data_ & 0x8000;
+		detail::uint16 sign = arg.data_ & 0x8000;
 		if(abs >= 0x7C00)
-			return (abs==0x7C00) ? half(detail::binary, value>>1) : arg;
+			return (abs==0x7C00) ? half(detail::binary, sign>>1) : arg;
 		if(!abs)
 			return half(detail::binary, 0x3C00);
+/*
+		double a[] ={ 0.0705230784, 0.0422820123, 0.0092705272, 0.0001520143, 0.0002765672, 0.0000430638 };
+		double x[6];
+		x[0] = detail::half2float<double>(abs);
+		for(unsigned int i=1; i<6; ++i)
+			x[i] = x[i-1] * x[0];
+		double f = 1.0;
+		for(unsigned int i=0; i<6; ++i)
+			f += x[i] * a[i];
+		f *= f; f *= f; f *= f; f *= f;
+		f = 1.0 / f;
+		if(sign)
+		{
+			f = 2.0 - f;
+			if(f == 2.0)
+				return half(detail::binary, detail::rounded<half::round_style>(0x3FFF, 1, 1));
+		}
+		else if(f == 0.0)
+			return half(detail::binary, detail::underflow<half::round_style>(0));
+		if(f == 1.0)
+			return half(detail::binary, detail::rounded<half::round_style>(0x3C00, 0, 1));
+		return half(detail::binary, detail::float2half<half::round_style>(f));
+*/
 		if(abs > 0x4400)
-			return half(detail::binary, detail::rounded<half::round_style>((value>>1)-(value>>15), value>>15, 1));
+			return half(detail::binary, detail::rounded<half::round_style>((sign>>1)-(sign>>15), sign>>15, 1));
 		return half(detail::binary, detail::erf<half::round_style,true>(arg.data_));
 	}
 

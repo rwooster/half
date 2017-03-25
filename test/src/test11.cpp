@@ -26,6 +26,7 @@
 #include <iomanip>
 #include <memory>
 #include <algorithm>
+#include <numeric>
 #include <iterator>
 #include <functional>
 #include <fstream>
@@ -248,7 +249,7 @@ public:
 		unary_reference_test("erfc", half_float::erfc);
 /*		unary_reference_test("lgamma", half_float::lgamma);
 		unary_reference_test("tgamma", half_float::tgamma);
-/*		UNARY_MATH_TEST(lgamma);
+		UNARY_MATH_TEST(lgamma);
 		UNARY_MATH_TEST(tgamma);
 
 		//test round functions
@@ -814,17 +815,6 @@ int main(int argc, char *argv[]) try
 	case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
 	}
 /*
-	unsigned int sum = 0;
-	int q = 0;
-	{
-		timer time;
-		for(unsigned int i=0; i<1000; ++i)
-			for(unsigned int a=0; a<std::numeric_limits<std::uint16_t>::max(); ++a)
-				sum += h2b(exp2(b2h(a)));
-	}
-	std::cout << sum;
-	return 0;
-
 	auto rand_abs = std::bind(std::uniform_int_distribution<std::uint32_t>(0x00000000, 0x7F100000), std::default_random_engine());
 	auto rand_sign = std::bind(std::uniform_int_distribution<std::uint32_t>(0, 1), std::default_random_engine());
 	std::vector<float> floats;
@@ -879,11 +869,6 @@ int main(int argc, char *argv[]) try
 	return 0;
 
 	using namespace half_float::literal;
-	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << std::llrint(std::ldexp(1.2732395447351626861510701069801l*std::log2(2.7182818284590452353602874713527l), 35)) << '\n';
-	std::cout << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << std::llrint(std::ldexp(0.14001228868666660600424949138612l, 38)) << '\n';
-	return 0;
-
-	using namespace half_float::literal;
 	for(std::uint16_t i=0x3C00; i<0x7C00; ++i)
 	{
 		half x = b2h(i), y = half_cast<half,std::round_toward_neg_infinity>(std::erfc(half_cast<double>(x)));
@@ -898,6 +883,46 @@ int main(int argc, char *argv[]) try
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0001520143l, 31+13)) << '\n';
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0002765672l, 31+12)) << '\n';
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0000430638l, 31+15)) << '\n';
+	return 0;
+
+	static const unsigned int N = 1000;
+	std::vector<half> halfs, results;
+	for(std::uint16_t u=0; u<0x7C00; ++u)
+	{
+		halfs.push_back(b2h(u));
+		halfs.push_back(b2h(u|0x8000));
+	}
+	results.reserve(N*halfs.size());
+	std::shuffle(halfs.begin(), halfs.end(), std::default_random_engine());
+	{
+		timer time;
+		for(unsigned int i=0; i<N; ++i)
+			for(auto h : halfs)
+				results.push_back(erfc(h));
+//				results.push_back(half_cast<half>(std::erfc(half_cast<float>(h))));
+	}
+	std::cout << std::accumulate(results.begin(), results.end(), 0.0f) << '\n';
+	return 0;
+
+	std::vector<half> xs, ys, results;
+	for(std::uint16_t u=0; u<0x7C00; u+=8)
+	{
+		xs.push_back(b2h(u));
+		xs.push_back(b2h(u|0x8000));
+	}
+	ys = xs;
+	results.reserve(xs.size()*ys.size());
+	std::default_random_engine g;
+	std::shuffle(xs.begin(), xs.end(), g);
+	std::shuffle(ys.begin(), ys.end(), g);
+	{
+		timer time;
+		for(auto x : xs)
+			for(auto y : ys)
+//				results.push_back(atan2(x, y));
+				results.push_back(half_cast<half>(std::atan2(half_cast<float>(x), half_cast<float>(y))));
+	}
+	std::cout << std::accumulate(results.begin(), results.end(), 0.0f) << '\n';
 	return 0;
 */
 	std::vector<std::string> args(argv+1, argv+argc);
