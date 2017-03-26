@@ -1976,6 +1976,7 @@ namespace std
 
 namespace half_float
 {
+	/// \anchor comparison
 	/// \name Comparison operators
 	/// \{
 
@@ -2038,20 +2039,24 @@ namespace half_float
 	}
 
 	/// \}
+	/// \anchor arithmetics
 	/// \name Arithmetic operators
 	/// \{
 
 	/// Identity.
+	/// This operation is always exact.
 	/// \param arg operand
 	/// \return unchanged operand
 	inline HALF_CONSTEXPR half operator+(half arg) { return arg; }
 
 	/// Negation.
+	/// This operation is always exact.
 	/// \param arg operand
 	/// \return negated operand
 	inline HALF_CONSTEXPR half operator-(half arg) { return half(detail::binary, arg.data_^0x8000); }
 
 	/// Add halfs.
+	/// This operation is exact to rounding for all rounding modes.
 	/// \param x left operand
 	/// \param y right operand
 	/// \return sum of half expressions
@@ -2098,12 +2103,14 @@ namespace half_float
 	}
 
 	/// Subtract halfs.
+	/// This operation is exact to rounding for all rounding modes.
 	/// \param x left operand
 	/// \param y right operand
 	/// \return difference of half expressions
 	inline half operator-(half x, half y) { return x + -y; }
 
 	/// Multiply halfs.
+	/// This operation is exact to rounding for all rounding modes.
 	/// \param x left operand
 	/// \param y right operand
 	/// \return product of half expressions
@@ -2132,6 +2139,7 @@ namespace half_float
 	}
 
 	/// Divide halfs.
+	/// This operation is exact to rounding for all rounding modes.
 	/// \param x left operand
 	/// \param y right operand
 	/// \return quotient of half expressions
@@ -2160,6 +2168,7 @@ namespace half_float
 	}
 
 	/// \}
+	/// \anchor streaming
 	/// \name Input and output
 	/// \{
 
@@ -2169,7 +2178,7 @@ namespace half_float
 	/// \return reference to output stream
 	template<typename charT,typename traits> std::basic_ostream<charT,traits>& operator<<(std::basic_ostream<charT,traits> &out, half arg)
 	{
-		return out << static_cast<float>(arg);
+		return out << static_cast<double>(arg);
 	}
 
 	/// Input operator.
@@ -2178,22 +2187,25 @@ namespace half_float
 	/// \return reference to input stream
 	template<typename charT,typename traits> std::basic_istream<charT,traits>& operator>>(std::basic_istream<charT,traits> &in, half &arg)
 	{
-		float f;
+		double f;
 		if(in >> f)
 			arg = f;
 		return in;
 	}
 
 	/// \}
+	/// \anchor basic
 	/// \name Basic mathematical operations
 	/// \{
 
 	/// Absolute value.
+	/// This function is always exact.
 	/// \param arg operand
 	/// \return absolute value of \a arg
 	inline half fabs(half arg) { return half(detail::binary, arg.data_&0x7FFF); }
 
 	/// Absolute value.
+	/// This function is always exact.
 	/// \param arg operand
 	/// \return absolute value of \a arg
 	inline half abs(half arg) { return fabs(arg); }
@@ -2252,6 +2264,7 @@ namespace half_float
 	}
 
 	/// Fused multiply add.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param x first operand
 	/// \param y second operand
 	/// \param z third operand
@@ -2313,6 +2326,7 @@ namespace half_float
 	}
 
 	/// Maximum of half expressions.
+	/// This function is always exact.
 	/// \param x first operand
 	/// \param y second operand
 	/// \return maximum of operands
@@ -2329,6 +2343,7 @@ namespace half_float
 	}
 
 	/// Minimum of half expressions.
+	/// This function is always exact.
 	/// \param x first operand
 	/// \param y second operand
 	/// \return minimum of operands
@@ -2345,6 +2360,7 @@ namespace half_float
 	}
 
 	/// Positive difference.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param x first operand
 	/// \param y second operand
 	/// \return \a x - \a y or 0 if difference negative
@@ -2363,10 +2379,12 @@ namespace half_float
 	inline half nanh(const char*) { return half(detail::binary, 0x7FFF); }
 
 	/// \}
+	/// \anchor exponential
 	/// \name Exponential functions
 	/// \{
 
 	/// Exponential function.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return e raised to \a arg
 	inline half exp(half arg)
@@ -2400,6 +2418,7 @@ namespace half_float
 	}
 
 	/// Binary exponential.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return 2 raised to \a arg
 	inline half exp2(half arg)
@@ -2433,6 +2452,8 @@ namespace half_float
 	}
 
 	/// Exponential minus one.
+	/// This function might be 1 ulp off the correctly rounded result in <0.05% of inputs for `std::round_to_nearest`, 
+	/// in <0.5% of inputs for `std::round_toward_neg_infinity` and in ~15% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return e raised to \a arg and subtracted by 1
 	inline half expm1(half arg)
@@ -2484,6 +2505,7 @@ namespace half_float
 	}
 
 	/// Natural logarithm.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return logarithm of \a arg to base e
 	inline half log(half arg)
@@ -2508,6 +2530,7 @@ namespace half_float
 	}
 
 	/// Common logarithm.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return logarithm of \a arg to base 10
 	inline half log10(half arg)
@@ -2541,7 +2564,8 @@ namespace half_float
 			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 27), 16, ilog<0));
 	}
 
-	/// Natural logarithm.
+	/// Natural logarithm plus one.
+	/// This function might be 1 ulp off the correctly rounded result in <0.1% of inputs for `std::round_to_nearest` and in <2% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return logarithm of \a arg plus 1 to base e
 	inline half log1p(half arg)
@@ -2586,6 +2610,7 @@ namespace half_float
 	}
 
 	/// Binary logarithm.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return logarithm of \a arg to base 2
 	inline half log2(half arg)
@@ -2614,10 +2639,12 @@ namespace half_float
 	}
 
 	/// \}
+	/// \anchor power
 	/// \name Power functions
 	/// \{
 
 	/// Square root.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return square root of \a arg
 	inline half sqrt(half arg)
@@ -2638,6 +2665,7 @@ namespace half_float
 	}
 
 	/// Cubic root.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return cubic root of \a arg
 	inline half cbrt(half arg)
@@ -2681,6 +2709,7 @@ namespace half_float
 	}
 
 	/// Hypotenuse function.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param x first argument
 	/// \param y second argument
 	/// \return square root of sum of squares without internal over- or underflows
@@ -2719,6 +2748,7 @@ namespace half_float
 	}
 
 	/// Hypotenuse function.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param x first argument
 	/// \param y second argument
 	/// \param z third argument
@@ -2772,6 +2802,7 @@ namespace half_float
 	}
 
 	/// Power function.
+	/// This function might be 1 ulp off the correctly rounded result in <0.0005% of inputs for `std::round_to_nearest` and in <0.05% of inputs for any other rounding mode.
 	/// \param x base
 	/// \param y exponent
 	/// \return \a x raised to \a y
@@ -2823,6 +2854,7 @@ namespace half_float
 	}
 
 	/// \}
+	/// \anchor trigonometric
 	/// \name Trigonometric functions
 	/// \{
 
@@ -2909,6 +2941,8 @@ namespace half_float
 	}
 
 	/// Arc sine.
+	/// This function is exact to rounding for `std::round_to_nearest` and might be 1 ulp off the correctly rounded result 
+	/// in ~5% of inputs for `std::round_toward_zero` and in ~10% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return arc sine value of \a arg
 	inline half asin(half arg)
@@ -2925,6 +2959,7 @@ namespace half_float
 	}
 
 	/// Arc cosine function.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return arc cosine value of \a arg
 	inline half acos(half arg)
@@ -2940,6 +2975,7 @@ namespace half_float
 	}
 
 	/// Arc tangent function.
+	/// This function is exact to rounding for `std::round_to_nearest` and might be 1 ulp off the correctly rounded result for any other rounding mode in <10% of inputs.
 	/// \param arg function argument
 	/// \return arc tangent value of \a arg
 	inline half atan(half arg)
@@ -2955,6 +2991,7 @@ namespace half_float
 	}
 
 	/// Arc tangent function.
+	/// This function might be 1 ulp off the correctly rounded result in <0.2% of inputs for `std::round_to_nearest` and in <0.5% of inputs for any other rounding mode.
 	/// \param y numerator
 	/// \param x denominator
 	/// \return arc tangent value
@@ -2995,10 +3032,12 @@ namespace half_float
 	}
 
 	/// \}
+	/// \anchor hyperbolic
 	/// \name Hyperbolic functions
 	/// \{
 
 	/// Hyperbolic sine.
+	/// This function is exact to rounding for `std::round_to_nearest` and might be 1 ulp off the correctly rounded result for any other rounding mode in ~15% of inputs.
 	/// \param arg function argument
 	/// \return hyperbolic sine value of \a arg
 	inline half sinh(half arg)
@@ -3024,6 +3063,7 @@ namespace half_float
 	}
 
 	/// Hyperbolic cosine.
+	/// This function is exact to rounding for `std::round_to_nearest` and might be 1 ulp off the correctly rounded result for any other rounding mode in <0.01% of inputs.
 	/// \param arg function argument
 	/// \return hyperbolic cosine value of \a arg
 	inline half cosh(half arg)
@@ -3054,6 +3094,8 @@ namespace half_float
 	}
 
 	/// Hyperbolic tangent.
+	/// This function is exact to rounding for `std::round_to_nearest` and might be 1 ulp off the correctly rounded result 
+	/// in ~30% of inputs for `std::round_toward_zero` and in ~15% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return hyperbolic tangent value of \a arg
 	inline half tanh(half arg)
@@ -3081,6 +3123,7 @@ namespace half_float
 	}
 
 	/// Hyperbolic area sine.
+	/// This function is exact to rounding for `std::round_to_nearest` and might be 1 ulp off the correctly rounded result for any other rounding mode in <5% of inputs.
 	/// \param arg function argument
 	/// \return area sine value of \a arg
 	inline half asinh(half arg)
@@ -3101,6 +3144,7 @@ namespace half_float
 	}
 
 	/// Hyperbolic area cosine.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return area cosine value of \a arg
 	inline half acosh(half arg)
@@ -3123,6 +3167,7 @@ namespace half_float
 	}
 
 	/// Hyperbolic area tangent.
+	/// This function is exact to rounding for `std::round_to_nearest` and might be 1 ulp off the correctly rounded result for any other rounding mode in ~10% of inputs.
 	/// \param arg function argument
 	/// \return area tangent value of \a arg
 	inline half atanh(half arg)
@@ -3153,10 +3198,12 @@ namespace half_float
 	}
 
 	/// \}
+	/// \anchor special
 	/// \name Error and gamma functions
 	/// \{
 
 	/// Error function.
+	/// This function might be 1 ulp off the correctly rounded result for any rounding mode in <1% of inputs.
 	/// \param arg function argument
 	/// \return error function value of \a arg
 	inline half erf(half arg)
@@ -3188,6 +3235,7 @@ namespace half_float
 	}
 
 	/// Complementary error function.
+	/// This function might be 1 ulp off the correctly rounded result for any rounding mode in <1% of inputs.
 	/// \param arg function argument
 	/// \return 1 minus error function value of \a arg
 	inline half erfc(half arg)
@@ -3275,65 +3323,78 @@ namespace half_float
 	}
 
 	/// \}
+	/// \anchor rounding
 	/// \name Rounding
 	/// \{
 
 	/// Nearest integer not less than half value.
+	/// This function is exact to rounding and independent of the current rounding mode.
 	/// \param arg half to round
 	/// \return nearest integer not less than \a arg
 	inline half ceil(half arg) { return half(detail::binary, detail::round_half<std::round_toward_infinity>(arg.data_)); }
 
 	/// Nearest integer not greater than half value.
+	/// This function is exact to rounding and independent of the current rounding mode.
 	/// \param arg half to round
 	/// \return nearest integer not greater than \a arg
 	inline half floor(half arg) { return half(detail::binary, detail::round_half<std::round_toward_neg_infinity>(arg.data_)); }
 
 	/// Nearest integer not greater in magnitude than half value.
+	/// This function is exact to rounding and independent of the current rounding mode.
 	/// \param arg half to round
 	/// \return nearest integer not greater in magnitude than \a arg
 	inline half trunc(half arg) { return half(detail::binary, detail::round_half<std::round_toward_zero>(arg.data_)); }
 
 	/// Nearest integer.
+	/// This function is exact to rounding and independent of the current rounding mode.
 	/// \param arg half to round
 	/// \return nearest integer, rounded away from zero in half-way cases
 	inline half round(half arg) { return half(detail::binary, detail::round_half_up(arg.data_)); }
 
 	/// Nearest integer.
+	/// This function is exact to rounding and independent of the current rounding mode.
 	/// \param arg half to round
 	/// \return nearest integer, rounded away from zero in half-way cases
 	inline long lround(half arg) { return detail::half2int_up<long>(arg.data_); }
 
 	/// Nearest integer using half's internal rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg half expression to round
 	/// \return nearest integer using default rounding mode
 	inline half rint(half arg) { return half(detail::binary, detail::round_half<half::round_style>(arg.data_)); }
 
 	/// Nearest integer using half's internal rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg half expression to round
 	/// \return nearest integer using default rounding mode
 	inline long lrint(half arg) { return detail::half2int<half::round_style,long>(arg.data_); }
 
 	/// Nearest integer using half's internal rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg half expression to round
 	/// \return nearest integer using default rounding mode
 	inline half nearbyint(half arg) { return rint(arg); }
 #if HALF_ENABLE_CPP11_LONG_LONG
 	/// Nearest integer.
+	/// This function is exact to rounding and independent of the current rounding mode.
 	/// \param arg half to round
 	/// \return nearest integer, rounded away from zero in half-way cases
 	inline long long llround(half arg) { return detail::half2int_up<long long>(arg.data_); }
 
 	/// Nearest integer using half's internal rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg half expression to round
 	/// \return nearest integer using default rounding mode
 	inline long long llrint(half arg) { return detail::half2int<half::round_style,long long>(arg.data_); }
 #endif
 
 	/// \}
+	/// \anchor float
 	/// \name Floating point manipulation
 	/// \{
 
 	/// Decompress floating point number.
+	/// This function is always exact.
 	/// \param arg number to decompress
 	/// \param exp address to store exponent at
 	/// \return significant in range [0.5, 1)
@@ -3349,6 +3410,7 @@ namespace half_float
 	}
 
 	/// Multiply by power of two.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg number to modify
 	/// \param exp power of two to multiply with
 	/// \return \a arg multplied by 2 raised to \a exp
@@ -3371,18 +3433,21 @@ namespace half_float
 	}
 
 	/// Multiply by power of two.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg number to modify
 	/// \param exp power of two to multiply with
 	/// \return \a arg multplied by 2 raised to \a exp
 	inline half scalbn(half arg, int exp) { return scalbln(arg, exp); }
 
 	/// Multiply by power of two.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg number to modify
 	/// \param exp power of two to multiply with
 	/// \return \a arg multplied by 2 raised to \a exp
 	inline half ldexp(half arg, int exp) { return scalbln(arg, exp); }
 
 	/// Extract integer and fractional parts.
+	/// This function is always exact.
 	/// \param arg number to decompress
 	/// \param iptr address to store integer part at
 	/// \return fractional part
@@ -3423,6 +3488,7 @@ namespace half_float
 	}
 
 	/// Extract exponent.
+	/// This function is always exact.
 	/// \param arg number to query
 	/// \return floating point exponent
 	inline half logb(half arg)
@@ -3447,6 +3513,7 @@ namespace half_float
 	}
 
 	/// Next representable value.
+	/// This function is always exact.
 	/// \param from value to compute next representable value for
 	/// \param to direction towards which to compute next value
 	/// \return next representable value after \a from in direction towards \a to
@@ -3465,6 +3532,7 @@ namespace half_float
 	}
 
 	/// Next representable value.
+	/// This function is always exact.
 	/// \param from value to compute next representable value for
 	/// \param to direction towards which to compute next value
 	/// \return next representable value after \a from in direction towards \a to
@@ -3482,12 +3550,14 @@ namespace half_float
 	}
 
 	/// Take sign.
+	/// This function is always exact.
 	/// \param x value to change sign for
 	/// \param y value to take sign from
 	/// \return value equal to \a x in magnitude and to \a y in sign
 	inline half copysign(half x, half y) { return half(detail::binary, x.data_^((x.data_^y.data_)&0x8000)); }
 
 	/// \}
+	/// \anchor classification
 	/// \name Floating point classification
 	/// \{
 
@@ -3535,6 +3605,7 @@ namespace half_float
 	inline bool signbit(half arg) { return (arg.data_&0x8000) != 0; }
 
 	/// \}
+	/// \anchor comparison
 	/// \name Comparison
 	/// \{
 
@@ -3580,6 +3651,8 @@ namespace half_float
 	/// \retval false else
 	inline bool isunordered(half x, half y) { return isnan(x) || isnan(y); }
 
+	/// \}
+	/// \anchor casting
 	/// \name Casting
 	/// \{
 
