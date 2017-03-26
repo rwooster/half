@@ -1339,11 +1339,12 @@ namespace half_float
 			r = 0x40000000 - ((rexp>-31) ? ((r>>-rexp)|((r&((static_cast<uint32>(1)<<-rexp)-1))!=0)) : 1);
 			for(rexp=0; r<0x40000000; r<<=1,--rexp) ;
 			uint32 mx = detail::sqrt<30>(r, rexp);
-			mx += r > mx;
 			int d = exp - rexp;
 			if(d < 0)
-				return std::make_pair((d<-14) ? ((my>>(-d-14))+((my>>(-d-15))&1)) : (my<<(14+d)), mx<<14);
-			return std::make_pair(my<<(14-!d), (d>14) ? ((mx>>(d-14))+((mx>>(d-15))&1)) : (mx<<(14-!d-d)));
+				return std::make_pair((d<-14) ? ((my>>(-d-14))+((my>>(-d-15))&1)) : (my<<(14+d)), (mx<<14)+(r<<13)/mx);
+			if(d > 0)
+				return std::make_pair(my<<14, (d>14) ? ((mx>>(d-14))+((mx>>(d-15))&1)) : ((d==14) ? mx : ((mx<<14-d)+(r<<(13-d))/mx)));
+			return std::make_pair(my<<13, (mx<<13)+(r<<12)/mx);
 		}
 
 		/// Get exponentials for hyperbolic computation
@@ -1505,7 +1506,7 @@ namespace half_float
 				for(; r<0x40000000; r<<=1,--expy) ;
 			}
 			my = sqrt<30>(r, expy);
-			my = ((my+(r>=my))<<15) | (r<my&&r!=0);
+			my = (my<<15) + (r<<14)/my;
 			if(S)
 			{
 				mx >>= expy - expx;
@@ -1518,7 +1519,7 @@ namespace half_float
 			}
 			my += mx;
 			i = my >> 31;
-			return detail::log2_post<R,0xB8AA3B2A>(detail::log2(my>>i, ilog+i/*, 27*/), 17, S && (arg&0x8000));
+			return detail::log2_post<R,0xB8AA3B2A>(detail::log2(my>>i, ilog+i, 26+2*S), 17, S && (arg&0x8000));
 		}
 
 		/// Error function and postprocessing.
@@ -2948,8 +2949,8 @@ namespace half_float
 		if(!abs || abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, detail::rounded<half::round_style>(value|0x3E48, 0, 1)) : arg;
 		int exp = (abs>>10) + (abs<=0x3FF);
-		detail::uint32 my = (abs&0x3FF) | ((abs>0x3FF)<<10), mx = 0x20000000;
-		detail::uint32 m = (exp>15) ? detail::atan2(my<<19, mx>>(exp-15)) : detail::atan2(my<<(exp+4), 0x20000000);
+		detail::uint32 my = (abs&0x3FF) | ((abs>0x3FF)<<10);
+		detail::uint32 m = (exp>15) ? detail::atan2(my<<19, 0x20000000>>(exp-15)) : detail::atan2(my<<(exp+4), 0x20000000);
 		return half(detail::binary, detail::fixed2half<half::round_style,30,false,true>(m, 14, value));
 	}
 

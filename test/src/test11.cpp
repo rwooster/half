@@ -233,9 +233,9 @@ public:
 		unary_reference_test("tan", half_float::tan);
 		unary_reference_test("asin", half_float::asin);
 		unary_reference_test("acos", half_float::acos);
-		unary_reference_test("atan", half_float::atan);
+*/		unary_reference_test("atan", half_float::atan);
 		binary_reference_test("atan2", half_float::atan2);
-
+/*
 		//test hyp functions
 		unary_reference_test("sinh", half_float::sinh);
 		unary_reference_test("cosh", half_float::cosh);
@@ -243,11 +243,11 @@ public:
 		unary_reference_test("asinh", half_float::asinh);
 		unary_reference_test("acosh", half_float::acosh);
 		unary_reference_test("atanh", half_float::atanh);
-*/
+
 		//test err functions
 		unary_reference_test("erf", half_float::erf);
 		unary_reference_test("erfc", half_float::erfc);
-/*		unary_reference_test("lgamma", half_float::lgamma);
+		unary_reference_test("lgamma", half_float::lgamma);
 		unary_reference_test("tgamma", half_float::tgamma);
 		UNARY_MATH_TEST(lgamma);
 		UNARY_MATH_TEST(tgamma);
@@ -700,9 +700,7 @@ private:
 			{
 				double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
 //				std::cerr << arg << '(' << std::hex << h2b(arg) << ") = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
-				err = std::max(err, error);
-				rel = std::max(rel, error/std::abs(static_cast<double>(arg)));
-				bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
+				err = std::max(err, error); rel = std::max(rel, error/std::abs(b)); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
 			}
 			return equal;
 		});
@@ -733,9 +731,7 @@ private:
 				{
 					double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
 //					std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
-					err = std::max(err, error);
-					rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))));
-					bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
+					err = std::max(err, error); rel = std::max(rel, error/std::abs(b)); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
 				}
 				passed += equal;
 			}
@@ -770,9 +766,7 @@ private:
 				{
 					double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
 //					std::cerr << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
-					err = std::max(err, error);
-					rel = std::max(rel, error/std::min(std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))), std::abs(static_cast<double>(z))));
-					bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
+					err = std::max(err, error); rel = std::max(rel, error/std::abs(b)); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
 				}
 				passed += equal;
 			}
@@ -898,8 +892,8 @@ int main(int argc, char *argv[]) try
 		timer time;
 		for(unsigned int i=0; i<N; ++i)
 			for(auto h : halfs)
-				results.push_back(erfc(h));
-//				results.push_back(half_cast<half>(std::erfc(half_cast<float>(h))));
+				results.push_back(acos(h));
+//				results.push_back(half_cast<half>(std::acosh(half_cast<float>(h))));
 	}
 	std::cout << std::accumulate(results.begin(), results.end(), 0.0f) << '\n';
 	return 0;
