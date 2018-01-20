@@ -45,7 +45,7 @@ generalized constant expressions     | constant operations                | *VC+
 user-defined literals                | half-precision literals            | *VC++ 2015*, *gcc 4.7*, *clang 3.1*         | `HALF_ENABLE_CPP11_USER_LITERALS`
 type traits from `<type_traits>`     | TMP and extended checks            | *VC++ 2010*, *libstdc++ 4.3*, <i>libc++</i> | `HALF_ENABLE_CPP11_TYPE_TRAITS`
 sized integer types from `<cstdint>` | more flexible type sizes           | *VC++ 2010*, *libstdc++ 4.3*, <i>libc++</i> | `HALF_ENABLE_CPP11_CSTDINT`
-certain new `<cmath>` functions      | corresponding half implementations | *VC++ 2013*, *libstdc++ 4.3*, <i>libc++</i> | `HALF_ENABLE_CPP11_CMATH`
+certain new `<cmath>` functions      | classifications during conversions | *VC++ 2013*, *libstdc++ 4.3*, <i>libc++</i> | `HALF_ENABLE_CPP11_CMATH`
 `std::hash` from `<functional>`      | hash function for halfs            | *VC++ 2010*, *libstdc++ 4.3*, <i>libc++</i> | `HALF_ENABLE_CPP11_HASH`
 
 The library has been tested successfully with *Visual C++ 2005* - *2015*, *gcc 4.4* - *4.8* and *clang 3.1*. Please [contact me](#contact) if you have any problems, suggestions or even just success testing it on other platforms.
@@ -122,10 +122,10 @@ Accuracy and Performance									{#implementation}
 
 From version 2.0 onward the library is implemented without employing the underlying floating point implementation of the system, providing an entirely self-contained half-precision implementation with results independent from the system's existing single- or double-precision implementation and its rounding behaviour. The increased IEEE-conformance and cleanliness of this implementation comes with a certain performance cost compared to doing computations and mathematical functions in hardware-accelerated single-precision. On average, the arithemtic operators and mathematical functions provided by the library take about roughly twice as long as performing the corresponding operations in single-precision and converting between the inputs and outputs. However, directly computing with half-precision values is a rather rare use-case and usually using actual `float` values for all computations and temproraries and using [half](\ref half_float::half)s only for storage is the recommended way. But nevertheless the goal of this library was to provide a complete and conceptually clean half-precision implementation.
 
-As to accuracy, many of the operators and functions provided by this library are exact to rounding for all [rounding modes](\ref HALF_ROUND_STYLE), i.e. the error to the exact result is less than 0.5 ulp (unit in the last place) for rounding to nearest and less than 1 ulp for all other rounding modes, including the operations required by the IEEE 754 standard. Some functions might exhibit a deviation from the correctly rounded result by 1 ulp for a select few input values and specific rounding modes. Specifically,
+As to accuracy, many of the operators and functions provided by this library are exact to rounding for all [rounding modes](\ref HALF_ROUND_STYLE), i.e. the error to the exact result is less than 0.5 ulp (unit in the last place) for rounding to nearest and less than 1 ulp for all other rounding modes. This holds for all the operations required by the IEEE 754 standard and more. Some functions might exhibit a deviation from the correctly rounded result by 1 ulp for a select few input values and specific rounding modes. Specifically,
 
 - The following functions are correct to rounding for all rounding modes: [arithmetic operators](\ref arithmetics), fdim(), fma(), [sqrt()](\ref half_float::sqrt), cbrt(), hypot(), exp(), [exp2()](\ref half_float::exp2), log(), log10(), [log2()](\ref half_float::log2), acos(), acosh(), ldexp(), scalbn(), scalbln(), [rounding functions](\ref rounding).
-- The following functions are correct to rounding when rounding to nearest and may be 1 ulp off the correctly rounded result for any other rounding mode:  asin(), sinh(), cosh(), tanh(), asinh(), atanh().
+- The following functions are correct to rounding when rounding to nearest and may be 1 ulp off the correctly rounded result for any other rounding mode: asin(), sinh(), cosh(), tanh(), asinh(), atanh().
 - The following functions may be 1 ulp off the correctly rounded result for all rounding modes: pow(), expm1(), log1p(), atan(), [atan2()](\ref half_float::atan2), [erf()](\ref half_float::erf), erfc().
 - All other functions are always exact and independent from the current rounding mode.
 
@@ -137,8 +137,8 @@ IEEE conformance											{#ieee}
 The [half](\ref half_float::half) type uses the standard IEEE representation with 1 sign bit, 5 exponent bits and 10 mantissa bits (11 when counting the hidden bit). It supports all types of special values, like subnormal values, infinity and NaNs. But there are some limitations to the complete conformance to the IEEE 754 standard:
 
 - The implementation does not differentiate between signalling and quiet NaNs, this means operations on [half](\ref half_float::half)s are not specified to trap on signalling NaNs.
-- Because of internal truncation it may also be that certain single-precision NaNs will be wrongly converted to half-precision infinity, though this is very unlikely to happen, since most single-precision implementations don't tend to only set the lowest bits of a NaN mantissa.
 - The implementation does not provide any floating point exceptions, thus arithmetic operations or mathematical functions are not specified to invoke proper floating point exceptions.
+- Because of internal truncation it may also be that certain single-precision NaNs will be wrongly converted to half-precision infinity, though this is very unlikely to happen, since most single-precision implementations don't tend to only set the lowest bits of a NaN mantissa.
 
 Some of those points could have been circumvented by controlling the floating point environment using `<cfenv>` or implementing a similar exception mechanism. But this would have required excessive runtime checks giving two high an impact on performance for something that is rarely ever needed. If you really need to rely on proper floating point exceptions, it is recommended to explicitly perform computations using the built-in floating point types to be on the safe side.
 
