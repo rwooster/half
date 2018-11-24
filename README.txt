@@ -63,7 +63,7 @@ DOCUMENTATION
 -------------
 
 Here follow some general words about the usage of the library and its 
-implementation. For a complete documentation of its iterface look at the 
+implementation. For a complete documentation of its interface look at the 
 corresponding website http://half.sourceforge.net. You may also generate the 
 complete developer documentation from the library's only include file's doxygen 
 comments, but this is more relevant to developers rather than mere users (for 
@@ -189,7 +189,9 @@ between the inputs and outputs. However, directly computing with half-precision
 values is a rather rare use-case and usually using actual `float` values for 
 all computations and temproraries and using [half](\ref half_float::half)s only 
 for storage is the recommended way. But nevertheless the goal of this library 
-was to provide a complete and conceptually clean half-precision implementation.
+was to provide a complete and conceptually clean half-precision implementation 
+and in the few cases when you do need to compute directly in half-precision you 
+do so for a reason and want precise results.
 
 As to accuracy, many of the operators and functions provided by this library 
 are exact to rounding for all [rounding modes](\ref HALF_ROUND_STYLE), i.e. the 
@@ -206,7 +208,8 @@ for a select few input values and specific rounding modes. Specifically,
 
   - The following functions are correct to rounding when rounding to nearest 
     and may be 1 ulp off the correctly rounded result for any other rounding 
-    mode: 'asin', 'sinh', 'cosh', 'tanh', 'asinh', 'atanh'.
+    mode: 'sincos', 'sin', 'cos', 'tan', 'asin', 'sinh', 'cosh', 'tanh', 
+	'asinh', 'atanh'.
 
   - The following functions may be 1 ulp off the correctly rounded result for 
     all rounding modes: 'pow', 'expm1', 'log1p', 'atan', 'atan2', 'erf', 'erfc'.
@@ -228,14 +231,14 @@ are some limitations to the complete conformance to the IEEE 754 standard:
     NaNs, this means operations on halfs are not specified to trap on 
     signalling NaNs (though they may, see last point).
 
-  - Because of internal truncation it may also be that certain single-precision 
-    NaNs will be wrongly converted to half-precision infinity, though this is 
-    very unlikely to happen, since most single-precision implementations don't 
-    tend to only set the lowest bits of a NaN mantissa.
-
   - The implementation does not provide any floating point exceptions, thus 
     arithmetic operations or mathematical functions are not specified to invoke 
     proper floating point exceptions.
+
+  - Due to the optimized single-to-half conversion it may also be that certain 
+    single-precision NaNs will be wrongly converted to half-precision infinity, 
+    though this is very unlikely to happen, since most single-precision 
+    implementations don't tend to only set the lowest bits of a NaN mantissa.
 
 Some of those points could have been circumvented by controlling the floating 
 point environment using <cfenv> or implementing a similar exception mechanism. 
