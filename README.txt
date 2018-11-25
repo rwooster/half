@@ -134,15 +134,16 @@ also return single-precision values, which is (even if maybe performing the
 exact same computation, see below) not as conceptually clean when working in a 
 half-precision environment.
 
-The default rounding mode for conversions from float to half uses truncation 
-(round toward zero, but mapping overflows to infinity) for rounding values not 
-representable exactly in half-precision. This is the fastest rounding possible 
-and is usually sufficient. But by redefining the 'HALF_ROUND_STYLE' 
-preprocessor symbol (before including half.hpp) this default can be overridden 
-with one of the other standard rounding modes using their respective constants 
-or the equivalent values of 'std::float_round_style' (it can even be 
-synchronized with the underlying single-precision implementation by defining it 
-to 'std::numeric_limits<float>::round_style'):
+The default rounding mode for conversions between half and more precise types 
+as well as for rounding results of arithmetic operations and mathematical 
+functions uses truncation (round toward zero, but mapping overflows to 
+infinity) for rounding values not representable exactly in half-precision. This 
+is the fastest rounding possible and is usually sufficient. But by redefining 
+the 'HALF_ROUND_STYLE' preprocessor symbol (before including half.hpp) this 
+default can be overridden with one of the other standard rounding modes using 
+their respective constants or the equivalent values of 'std::float_round_style' 
+(it can even be synchronized with the underlying single-precision 
+implementation by defining it to 'std::numeric_limits<float>::round_style'):
 
   - 'std::round_indeterminate' or -1 for the fastest rounding (default).
 
