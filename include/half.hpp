@@ -507,7 +507,7 @@ namespace half_float
 				int i = 125 - exp;
 				bits = (bits&0x7FFFFF) | 0x800000;
 				g = (bits>>i) & 1;
-				s = (bits&((1L<<i)-1)) != 0;
+				s = (bits&((static_cast<uint32>(1)<<i)-1)) != 0;
 				hbits |= bits >> (i+1);
 			}
 			else
@@ -594,7 +594,7 @@ namespace half_float
 				0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 
 				0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 
 				0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00, 0xFC00 };
-			static const unsigned char shift_table[512] = { 
+			static const unsigned char shift_table[512] = {
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
 				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
@@ -650,7 +650,7 @@ namespace half_float
 				int i = 1018 - exp;
 				hi = (hi&0xFFFFF) | 0x100000;
 				g = (hi>>i) & 1;
-				s |= (hi&((1L<<i)-1)) != 0;
+				s |= (hi&((static_cast<uint32>(1)<<i)-1)) != 0;
 				hbits |= hi >> (i+1);
 			}
 			else
@@ -768,7 +768,7 @@ namespace half_float
 				for(; abs<0x400; abs<<=1,bits-=0x800000) ;
 				bits += static_cast<uint32>(abs) << 13;
 			}
-*/			static const uint32 mantissa_table[2048] = { 
+*/			static const uint32 mantissa_table[2048] = {
 				0x00000000, 0x33800000, 0x34000000, 0x34400000, 0x34800000, 0x34A00000, 0x34C00000, 0x34E00000, 0x35000000, 0x35100000, 0x35200000, 0x35300000, 0x35400000, 0x35500000, 0x35600000, 0x35700000, 
 				0x35800000, 0x35880000, 0x35900000, 0x35980000, 0x35A00000, 0x35A80000, 0x35B00000, 0x35B80000, 0x35C00000, 0x35C80000, 0x35D00000, 0x35D80000, 0x35E00000, 0x35E80000, 0x35F00000, 0x35F80000, 
 				0x36000000, 0x36040000, 0x36080000, 0x360C0000, 0x36100000, 0x36140000, 0x36180000, 0x361C0000, 0x36200000, 0x36240000, 0x36280000, 0x362C0000, 0x36300000, 0x36340000, 0x36380000, 0x363C0000, 
@@ -897,12 +897,12 @@ namespace half_float
 				0x387A0000, 0x387A2000, 0x387A4000, 0x387A6000, 0x387A8000, 0x387AA000, 0x387AC000, 0x387AE000, 0x387B0000, 0x387B2000, 0x387B4000, 0x387B6000, 0x387B8000, 0x387BA000, 0x387BC000, 0x387BE000, 
 				0x387C0000, 0x387C2000, 0x387C4000, 0x387C6000, 0x387C8000, 0x387CA000, 0x387CC000, 0x387CE000, 0x387D0000, 0x387D2000, 0x387D4000, 0x387D6000, 0x387D8000, 0x387DA000, 0x387DC000, 0x387DE000, 
 				0x387E0000, 0x387E2000, 0x387E4000, 0x387E6000, 0x387E8000, 0x387EA000, 0x387EC000, 0x387EE000, 0x387F0000, 0x387F2000, 0x387F4000, 0x387F6000, 0x387F8000, 0x387FA000, 0x387FC000, 0x387FE000 };
-			static const uint32 exponent_table[64] = { 
+			static const uint32 exponent_table[64] = {
 				0x00000000, 0x00800000, 0x01000000, 0x01800000, 0x02000000, 0x02800000, 0x03000000, 0x03800000, 0x04000000, 0x04800000, 0x05000000, 0x05800000, 0x06000000, 0x06800000, 0x07000000, 0x07800000, 
 				0x08000000, 0x08800000, 0x09000000, 0x09800000, 0x0A000000, 0x0A800000, 0x0B000000, 0x0B800000, 0x0C000000, 0x0C800000, 0x0D000000, 0x0D800000, 0x0E000000, 0x0E800000, 0x0F000000, 0x47800000, 
 				0x80000000, 0x80800000, 0x81000000, 0x81800000, 0x82000000, 0x82800000, 0x83000000, 0x83800000, 0x84000000, 0x84800000, 0x85000000, 0x85800000, 0x86000000, 0x86800000, 0x87000000, 0x87800000, 
 				0x88000000, 0x88800000, 0x89000000, 0x89800000, 0x8A000000, 0x8A800000, 0x8B000000, 0x8B800000, 0x8C000000, 0x8C800000, 0x8D000000, 0x8D800000, 0x8E000000, 0x8E800000, 0x8F000000, 0xC7800000 };
-			static const unsigned short offset_table[64] = { 
+			static const unsigned short offset_table[64] = {
 				0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 
 				0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024 };
 			uint32 bits = mantissa_table[offset_table[value>>10]+(value&0x3FF)] + exponent_table[value>>10];
@@ -1166,8 +1166,7 @@ namespace half_float
 
 		/// Fixed point binary exponential.
 		/// \details This uses the BKM algorithm in E-mode.
-		/// \param arg exponent as Q0.31
-		/// \param exp unbiased exponent
+		/// \param m exponent in [0,1) as Q0.31
 		/// \param n number of iterations (at most 32)
 		/// \return 2 ^ \a arg as Q1.31
 		inline uint32 exp2(uint32 m, unsigned int n = 32)
@@ -1195,17 +1194,16 @@ namespace half_float
 
 		/// Fixed point binary logarithm.
 		/// \details This uses the BKM algorithm in L-mode.
-		/// \param m mantissa as Q1.30
-		/// \param exp unbiased exponent
-		/// \param n number of iterations (at most 29)
-		/// \return |log2(\a m) + \a exp| as Q5.27 fixed point format
-		inline uint32 log2(uint32 m, int exp, unsigned int n = 29)
+		/// \param m mantissa in [1,2) as Q1.30
+		/// \param n number of iterations (at most 32)
+		/// \return log2(\a m) as Q0.31
+		inline uint32 log2(uint32 m, unsigned int n = 32)
 		{
 			static const uint32 logs[] = {
-				0x08000000, 0x04AE00D2, 0x02934F09, 0x015C01A4, 0x00B31FB8, 0x005AEB4E, 0x002DCF2D, 0x0016FE51, 
-				0x000B84E2, 0x0005C3E1, 0x0002E24D, 0x0001713D, 0x0000B8A4, 0x00005C54, 0x00002E2A, 0x00001715, 
-				0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171, 0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 
-				0x0000000C, 0x00000006, 0x00000003, 0x00000001, 0x00000001 };
+				0x80000000, 0x4AE00D1D, 0x2934F098, 0x15C01A3A, 0x0B31FB7D, 0x05AEB4DD, 0x02DCF2D1, 0x016FE50B,
+				0x00B84E23, 0x005C3E10, 0x002E24CA, 0x001713D6, 0x000B8A47, 0x0005C53B, 0x0002E2A3, 0x00017153,
+				0x0000B8AA, 0x00005C55, 0x00002E2B, 0x00001715, 0x00000B8B, 0x000005C5, 0x000002E3, 0x00000171,
+				0x000000B9, 0x0000005C, 0x0000002E, 0x00000017, 0x0000000C, 0x00000006, 0x00000003, 0x00000001 };
 			uint32 mx = 0x40000000, my = 0;
 			if(m != mx)
 			{
@@ -1219,7 +1217,7 @@ namespace half_float
 					}
 				}
 			}
-			return (exp<0) ? ((static_cast<uint32>(-exp)<<27)-my) : ((static_cast<uint32>(exp)<<27)+my);
+			return my;
 		}
 
 		/// Fixed point sine and cosine.
@@ -1334,10 +1332,9 @@ namespace half_float
 				mx = (mx<<(e-14)) & 0x7FFFFFFF;
 			}
 			mx = exp2(mx, n);
-			int d = exp << 1;
+			int d = exp << 1, s;
 			if(mx > 0x80000000)
 			{
-				int s;
 				my = divide64(0x80000000, mx, s);
 				my |= s;
 				++d;
@@ -1356,13 +1353,12 @@ namespace half_float
 		/// \return value converted to half precision
 		template<std::float_round_style R> unsigned int exp2_post(uint32 m, int exp, bool sign, unsigned int value = 0)
 		{
+			int s = 0;
 			if(sign)
 			{
 				if(m > 0x80000000)
 				{
-					int s;
 					m = divide64(0x80000000, m, s);
-					m |= s;
 					++exp;
 				}
 				if(exp > 25)
@@ -1373,25 +1369,28 @@ namespace half_float
 			}
 			else if(exp > 15)
 				return overflow<R>(value);
-			return fixed2half<R,31,false,false>(m, exp+14, value);
+			return fixed2half<R,31,false,false>(m, exp+14, value, s);
 		}
 
-		/// Postprocessing for binary exponential.
+		/// Postprocessing for binary logarithm.
 		/// \tparam R rounding mode to use
 		/// \tparam L logarithm for base transformation as Q1.31
-		/// \param m mantissa
+		/// \param m fractional part of logarithm as Q0.31
 		/// \param exp biased exponent
-		/// \param sign sign bit
+		/// \param ilog signed integer part of logarithm
+		/// \param value half-precision value with sign bit only
 		/// \return value base-transformed and converted to half precision
-		template<std::float_round_style R,uint32 L> unsigned int log2_post(uint32 m, int exp, bool sign)
+		template<std::float_round_style R,uint32 L> unsigned int log2_post(uint32 m, int exp, int ilog, unsigned int value = 0)
 		{
+			uint32 sign = sign_mask(ilog);
+			m = (((static_cast<uint32>(ilog)<<27)+(m>>4))^sign) - sign;
 			if(!m)
 				return 0;
 			for(; m<0x80000000; m<<=1,--exp) ;
 			int i = m >= L, s;
 			exp += i;
 			m >>= 1 + i;
-			unsigned int value = static_cast<unsigned>(sign) << 15;
+			value ^= sign & 0x8000;
 			if(exp < -11)
 				return underflow<R>(value);
 			m = divide64(m, L, s);
@@ -1485,7 +1484,8 @@ namespace half_float
 			}
 			my += mx;
 			i = my >> 31;
-			return log2_post<R,0xB8AA3B2A>(log2(my>>i, ilog+i, 26+2*S), 17, S && (arg&0x8000));
+			static const int G = S && (R==std::round_to_nearest);
+			return log2_post<R,0xB8AA3B2A>(log2(my>>i, 26+S+G)+(G<<3), 17, ilog+i, arg&(static_cast<unsigned>(S)<<15));
 		}
 
 		struct q31
@@ -1559,10 +1559,10 @@ namespace half_float
 			{
 				if(a.exp < -25)
 					return underflow<R>();
-				return fixed2half<R, 30, false, false>(a.m>>1, a.exp+14, 0, a.m&1);
+				return fixed2half<R,30,false,false>(a.m>>1, a.exp+14, 0, a.m&1);
 			}
 			int d = C - a.exp;
-			return fixed2half<R, 31, false, true>(0x80000000-((d<31) ? ((a.m>>d)|((a.m&((1L<<d)-1))!=0)) : 1), 14+C, value&(C-1U));
+			return fixed2half<R,31,false,true>(0x80000000-((d<31) ? ((a.m>>d)|((a.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1), 14+C, value&(C-1U));
 		}
 
 		/// Logarithm of gamma function.
@@ -1577,7 +1577,8 @@ namespace half_float
 			static const q31 p[] = { { 0xA06C9901, 1 }, { 0xE1868CB7, 7 }, { 0x8625E279, 8 }, { 0xA1CE6098, 6 }, { 0xA03E158F, 2 }, { 0xBBE654E2, -7 } };
 			static const q31 g[] = { { 0xC999999A, 1 }, { 0xF6666666, 1 }, { 0x94CCCCCD, 2 } };
 			static const unsigned int N = sizeof(p) / sizeof(p[0]);
-
+			return 0;
+/*
 			if(arg == 0x4100)
 				std::cout << "test\n";
 
@@ -1724,12 +1725,12 @@ namespace half_float
 				x.m = divide64(x.m>>i, 0xB8AA3B29, s);
 				x.m |= s;
 
-/*				if(t.exp > x.exp || (t.exp == x.exp && t.m > x.m))
+				if(t.exp > x.exp || (t.exp == x.exp && t.m > x.m))
 				{
 					std::swap(x, t);
 					lsign = true;
 				}
-*/				d = x.exp - t.exp;
+				d = x.exp - t.exp;
 				assert(d >= 0);
 				assert(d < 31);
 				x.m -= ((d<31) ? ((t.m>>d)|((t.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
@@ -1745,7 +1746,7 @@ namespace half_float
 //			assert(x.exp > -14);
 			return fixed2half<R,31,false,false>(x.m, x.exp+14, static_cast<unsigned>(lsign)<<15);
 //			return std::log(s) + (arg-0.5)*std::log(t) - t;
-		}
+*/		}
 
 		/// Logarithm of gamma function.
 		/// \param arg function argument
@@ -1771,9 +1772,9 @@ namespace half_float
 	}
 
 	/// Half-precision floating point type.
-	/// \details This class implements an IEEE-conformant half-precision floating point type with the usual arithmetic operators and 
-	/// conversions. It is implicitly convertible to single-precision floating point, which makes artihmetic expressions and 
-	/// functions with mixed-type operands to be of the most precise operand type.
+	/// \details This class implements an IEEE-conformant half-precision floating point type with the usual arithmetic 
+	/// operators and conversions. It is implicitly convertible to single-precision floating point, which makes artihmetic 
+	/// expressions and functions with mixed-type operands to be of the most precise operand type.
 	///
 	/// According to the C++98/03 definition, the half type is not a POD type. But according to C++11's less strict and 
 	/// extended definitions it is both a standard layout type and a trivially copyable type (even if not a POD type), which 
@@ -1967,8 +1968,8 @@ namespace half_float
 	namespace literal
 	{
 		/// Half literal.
-		/// \details While this returns an actual half-precision value, half literals can unfortunately not be constant expressions due 
-		/// to rather involved conversions.
+		/// \details While this returns an actual half-precision value, half literals can unfortunately not be constant 
+		/// expressions due to rather involved conversions.
 		/// \param value literal value
 		/// \return half with given value (if representable)
 		inline half operator""_h(long double value) { return half(detail::binary, detail::float2half<half::round_style>(value)); }
@@ -1978,8 +1979,8 @@ namespace half_float
 	namespace detail
 	{
 		/// Helper class for half casts.
-		/// \details This class template has to be specialized for all valid cast argument to define an appropriate static `cast` member 
-		/// function and a corresponding `type` member denoting its return type.
+		/// \details This class template has to be specialized for all valid cast argument to define an appropriate static 
+		/// `cast` member function and a corresponding `type` member denoting its return type.
 		/// \tparam T destination type
 		/// \tparam U source type
 		/// \tparam R rounding mode to use
@@ -2465,7 +2466,7 @@ namespace half_float
 					value = z.data_ & 0x8000;
 			}
 			int d = exp - expz;
-			mz = (d<23) ? ((mz>>d)|((mz&((1L<<d)-1))!=0)) : 1;
+			mz = (d<23) ? ((mz>>d)|((mz&((static_cast<detail::uint32>(1)<<d)-1))!=0)) : 1;
 			if(sub)
 			{
 				m = m - mz;
@@ -2646,17 +2647,17 @@ namespace half_float
 	/// \return logarithm of \a arg to base e
 	inline half log(half arg)
 	{
-		int abs = arg.data_ & 0x7FFF, ilog = -15;
+		int abs = arg.data_ & 0x7FFF, exp = -15;
 		if(!abs)
 			return half(detail::binary, 0xFC00);
 		if(arg.data_ & 0x8000)
 			return half(detail::binary, 0x7FFF);
 		if(abs >= 0x7C00)
 			return arg;
-		for(; abs<0x400; abs<<=1,--ilog) ;
-		ilog += abs >> 10;
+		for(; abs<0x400; abs<<=1,--exp) ;
+		exp += abs >> 10;
 		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(
-			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 27), 17, ilog<0));
+			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, 27)+8, 17, exp));
 	}
 
 	/// Common logarithm.
@@ -2665,7 +2666,7 @@ namespace half_float
 	/// \return logarithm of \a arg to base 10
 	inline half log10(half arg)
 	{
-		int abs = arg.data_ & 0x7FFF, ilog = -15;
+		int abs = arg.data_ & 0x7FFF, exp = -15;
 		if(!abs)
 			return half(detail::binary, 0xFC00);
 		if(arg.data_ & 0x8000)
@@ -2682,14 +2683,15 @@ namespace half_float
 			case 0x70E2: return half(detail::binary, 0x4400);
 			}
 		}
-		for(; abs<0x400; abs<<=1,--ilog) ;
-		ilog += abs >> 10;
+		for(; abs<0x400; abs<<=1,--exp) ;
+		exp += abs >> 10;
 		return half(detail::binary, detail::log2_post<half::round_style,0xD49A784C>(
-			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 27), 16, ilog<0));
+			detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, 27)+8, 16, exp));
 	}
 
 	/// Natural logarithm plus one.
-	/// \details This function may be 1 ulp off the correctly rounded result in <0.1% of inputs for `std::round_to_nearest` and in <2% of inputs for any other rounding mode.
+	/// \details This function may be 1 ulp off the correctly rounded result in <0.05% of inputs for `std::round_to_nearest` 
+	/// and in ~1% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return logarithm of \a arg plus 1 to base e
 	inline half log1p(half arg)
@@ -2698,33 +2700,33 @@ namespace half_float
 			return half(detail::binary, 0xFC00);
 		if(arg.data_ > 0xBC00)
 			return half(detail::binary, 0x7FFF);
-		int abs = arg.data_ & 0x7FFF, ilog = -15;
+		int abs = arg.data_ & 0x7FFF, exp = -15;
 		if(!abs || abs >= 0x7C00)
 			return arg;
-		for(; abs<0x400; abs<<=1,--ilog) ;
-		ilog += abs >> 10;
+		for(; abs<0x400; abs<<=1,--exp) ;
+		exp += abs >> 10;
 		detail::uint32 m = static_cast<detail::uint32>((abs&0x3FF)|0x400) << 20;
 		if(arg.data_ & 0x8000)
 		{
-			m = 0x40000000 - (m>>-ilog);
-			for(ilog=0; m<0x40000000; m<<=1,--ilog) ;
+			m = 0x40000000 - (m>>-exp);
+			for(exp=0; m<0x40000000; m<<=1,--exp) ;
 		}
 		else
 		{
-			if(ilog < 0)
+			if(exp < 0)
 			{
-				m = 0x40000000 + (m>>-ilog);
-				ilog = 0;
+				m = 0x40000000 + (m>>-exp);
+				exp = 0;
 			}
 			else
 			{
-				m += 0x40000000 >> ilog;
+				m += 0x40000000 >> exp;
 				int i = m >= 0x80000000;
 				m >>= i;
-				ilog += i;
+				exp += i;
 			}
 		}
-		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(detail::log2(m, ilog), 17, ilog<0));
+		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(detail::log2(m), 17, exp));
 	}
 
 	/// Binary logarithm.
@@ -2733,21 +2735,20 @@ namespace half_float
 	/// \return logarithm of \a arg to base 2
 	inline half log2(half arg)
 	{
-		int abs = arg.data_ & 0x7FFF, ilog = -15;
+		int abs = arg.data_ & 0x7FFF, exp = -15, s = 0;
 		if(!abs)
 			return half(detail::binary, 0xFC00);
 		if(arg.data_ & 0x8000)
 			return half(detail::binary, 0x7FFF);
 		if(abs >= 0x7C00)
 			return arg;
-		for(; abs<0x400; abs<<=1,--ilog) ;
-		ilog += abs >> 10;
-		detail::uint32 m = detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 28);
-		int exp = 14, s = 0;
-		for(; m<0x8000000 && exp; m<<=1,--exp) ;
+		for(; abs<0x400; abs<<=1,--exp) ;
+		detail::uint32 ilog = exp + (abs>>10), sign = detail::sign_mask(ilog), m = 
+			(((ilog<<27)+(detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, 28)>>4))^sign) - sign;
+		for(exp=14; m<0x8000000 && exp; m<<=1,--exp) ;
 		for(; m>0xFFFFFFF; m>>=1,++exp)
 			s |= m & 1;
-		return half(detail::binary, detail::rounded<half::round_style>((static_cast<unsigned>(ilog<0)<<15)|(exp<<10)+(m>>17), (m>>16)&1, s|((m&0xFFFF)!=0)));
+		return half(detail::binary, detail::rounded<half::round_style>((sign&0x8000)|(exp<<10)+(m>>17), (m>>16)&1, s|((m&0xFFFF)!=0)));
 	}
 
 	/// \}
@@ -2779,15 +2780,15 @@ namespace half_float
 	/// \return cubic root of \a arg
 	inline half cbrt(half arg)
 	{
-		int abs = arg.data_ & 0x7FFF, ilog = -15, exp = 2;
+		int abs = arg.data_ & 0x7FFF, exp = -15;
 		if(!abs || abs >= 0x7C00 || abs == 0x3C00)
 			return arg;
-		for(; abs<0x400; abs<<=1, --ilog);
-		ilog += abs >> 10;
-		detail::uint32 m = detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, ilog, 24), f;
-		for(; m<0x80000000; m<<=1,--exp) ;
+		for(; abs<0x400; abs<<=1, --exp);
+		detail::uint32 ilog = exp + (abs>>10), sign = detail::sign_mask(ilog), f, m = 
+			(((ilog<<27)+(detail::log2(static_cast<detail::uint32>((abs&0x3FF)|0x400)<<20, 24)>>4))^sign) - sign;
+		for(exp=2; m<0x80000000; m<<=1,--exp) ;
 		m = detail::multiply64(m, 0xAAAAAAAB);
-		int i = m >> 31;
+		int i = m >> 31, s;
 		exp += i;
 		m <<= 1 - i;
 		if(exp < 0)
@@ -2801,13 +2802,11 @@ namespace half_float
 			exp = m >> (31-exp);
 		}
 		m = detail::exp2(f, 30);
-		if(ilog < 0)
+		if(sign)
 		{
 			if(m > 0x80000000)
 			{
-				int s;
 				m = detail::divide64(0x80000000, m, s);
-				m |= s;
 				++exp;
 			}
 			exp = -exp;
@@ -2844,7 +2843,7 @@ namespace half_float
 		mx <<= 10 - ix;
 		my <<= 10 - iy;
 		int d = expx - expy;
-		my = (d<30) ? ((my>>d)|((my&((1L<<d)-1))!=0)) : 1;
+		my = (d<30) ? ((my>>d)|((my&((static_cast<detail::uint32>(1)<<d)-1))!=0)) : 1;
 		return half(detail::binary, detail::hypot_post<half::round_style>(mx+my, expx));
 	}
 
@@ -2886,7 +2885,7 @@ namespace half_float
 		my <<= 10 - iy;
 		mz <<= 10 - iz;
 		int d = expy - expz;
-		mz = (d<30) ? ((mz>>d)|((mz&((1L<<d)-1))!=0)) : 1;
+		mz = (d<30) ? ((mz>>d)|((mz&((static_cast<detail::uint32>(1)<<d)-1))!=0)) : 1;
 		my += mz;
 		if(my & 0x80000000)
 		{
@@ -2898,18 +2897,19 @@ namespace half_float
 			}
 		}
 		d = expx - expy;
-		my = (d<30) ? ((my>>d)|((my&((1L<<d)-1))!=0)) : 1;
+		my = (d<30) ? ((my>>d)|((my&((static_cast<detail::uint32>(1)<<d)-1))!=0)) : 1;
 		return half(detail::binary, detail::hypot_post<half::round_style>(mx+my, expx));
 	}
 
 	/// Power function.
-	/// \details This function may be 1 ulp off the correctly rounded result in <0.0005% of inputs for `std::round_to_nearest` and in <0.05% of inputs for any other rounding mode.
+	/// \details This function may be 1 ulp off the correctly rounded result in <0.0005% of inputs for `std::round_to_nearest` 
+	/// and in <0.05% of inputs for any other rounding mode.
 	/// \param x base
 	/// \param y exponent
 	/// \return \a x raised to \a y
 	inline half pow(half x, half y)
 	{
-		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, exp = -15;
 		if(!absy || x.data_ == 0x3C00)
 			return half(detail::binary, 0x3C00);
 		bool is_int = (absy>=0x6400) || (absy>=0x3C00 && !(absy&((1<<(25-(absy>>10)))-1)));
@@ -2923,12 +2923,11 @@ namespace half_float
 			return half(detail::binary, 0x7FFF);
 		if(x.data_ == 0xBC00)
 			return half(detail::binary, value|0x3C00);
-		int ilog = -15, exp = -11;
-		for(; absx<0x400; absx<<=1,--ilog) ;
+		for(; absx<0x400; absx<<=1,--exp) ;
+		detail::uint32 ilog = exp + (absx>>10), sign = detail::sign_mask(ilog), f, m = 
+			(((ilog<<27)+((detail::log2(static_cast<detail::uint32>((absx&0x3FF)|0x400)<<20)+8)>>4))^sign) - sign;
+		for(exp=-11; m<0x80000000; m<<=1,--exp) ;
 		for(; absy<0x400; absy<<=1,--exp) ;
-		ilog += absx >> 10;
-		detail::uint32 m = detail::log2(static_cast<detail::uint32>((absx&0x3FF)|0x400)<<20, ilog), f;
-		for(; m<0x80000000; m<<=1,--exp) ;
 		m = detail::multiply64(m, static_cast<detail::uint32>((absy&0x3FF)|0x400)<<21);
 		int i = m >> 31;
 		exp += (absy>>10) + i;
@@ -2943,7 +2942,7 @@ namespace half_float
 			f = (m<<exp) & 0x7FFFFFFF;
 			exp = m >> (31-exp);
 		}
-		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(f), exp, ((ilog<0)^(y.data_>>15))!=0, value));
+		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(f), exp, ((sign&1)^(y.data_>>15))!=0, value));
 	}
 
 	/// \}
@@ -2978,8 +2977,8 @@ namespace half_float
 	}
 
 	/// Sine function.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result 
-	/// in ~5% of inputs for any other rounding mode.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result in ~5% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return sine value of \a arg
 	inline half sin(half arg)
@@ -2995,8 +2994,8 @@ namespace half_float
 	}
 
 	/// Cosine function.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result 
-	/// in <0.1% of inputs for `std::round_toward_infinity` and in ~0.5% of inputs for any other rounding mode.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result in <0.1% of inputs for `std::round_toward_infinity` and in ~0.5% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return cosine value of \a arg
 	inline half cos(half arg)
@@ -3012,8 +3011,8 @@ namespace half_float
 	}
 
 	/// Tangent function.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result 
-	/// in ~5% of inputs for any other rounding mode.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result in ~5% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return tangent value of \a arg
 	inline half tan(half arg)
@@ -3034,8 +3033,8 @@ namespace half_float
 	}
 
 	/// Arc sine.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result 
-	/// in ~5% of inputs for `std::round_toward_zero` and in ~10% of inputs for any other rounding mode.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result in ~5% of inputs for `std::round_toward_zero` and in ~10% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return arc sine value of \a arg
 	inline half asin(half arg)
@@ -3067,7 +3066,8 @@ namespace half_float
 	}
 
 	/// Arc tangent function.
-	/// \details This function may be 1 ulp off the correctly rounded result in <0.01% of inputs for `std::round_to_nearest` and in <10% of inputs for any other rounding mode.
+	/// \details This function may be 1 ulp off the correctly rounded result in <0.01% of inputs for `std::round_to_nearest` 
+	/// and in <10% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return arc tangent value of \a arg
 	inline half atan(half arg)
@@ -3082,7 +3082,8 @@ namespace half_float
 	}
 
 	/// Arc tangent function.
-	/// \details This function may be 1 ulp off the correctly rounded result in <0.2% of inputs for `std::round_to_nearest` and in <0.5% of inputs for any other rounding mode.
+	/// \details This function may be 1 ulp off the correctly rounded result in <0.2% of inputs for `std::round_to_nearest` 
+	/// and in <0.5% of inputs for any other rounding mode.
 	/// \param y numerator
 	/// \param x denominator
 	/// \return arc tangent value
@@ -3127,7 +3128,8 @@ namespace half_float
 	/// \{
 
 	/// Hyperbolic sine.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result in ~15% of inputs for any other rounding mode.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result in ~15% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return hyperbolic sine value of \a arg
 	inline half sinh(half arg)
@@ -3145,7 +3147,8 @@ namespace half_float
 	}
 
 	/// Hyperbolic cosine.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result in <0.01% of inputs for any other rounding mode.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result in <0.01% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return hyperbolic cosine value of \a arg
 	inline half cosh(half arg)
@@ -3168,8 +3171,8 @@ namespace half_float
 	}
 
 	/// Hyperbolic tangent.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result 
-	/// in ~30% of inputs for `std::round_toward_zero` and in ~15% of inputs for any other rounding mode.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result in ~30% of inputs for `std::round_toward_zero` and in ~15% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return hyperbolic tangent value of \a arg
 	inline half tanh(half arg)
@@ -3189,7 +3192,8 @@ namespace half_float
 	}
 
 	/// Hyperbolic area sine.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result for any other rounding mode in <5% of inputs.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result for any other rounding mode in ~0.05% of inputs.
 	/// \param arg function argument
 	/// \return area sine value of \a arg
 	inline half asinh(half arg)
@@ -3215,7 +3219,8 @@ namespace half_float
 	}
 
 	/// Hyperbolic area tangent.
-	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded result for any other rounding mode in ~10% of inputs.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result for any other rounding mode in ~5% of inputs.
 	/// \param arg function argument
 	/// \return area tangent value of \a arg
 	inline half atanh(half arg)
@@ -3233,7 +3238,8 @@ namespace half_float
 			exp = -exp;
 		}
 		int i = my >= mx, s;
-		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(detail::log2(detail::divide64(my>>(i+1), mx, s), exp+i-1, 27), 16, exp<0));
+		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(
+			detail::log2(detail::divide64(my>>(i+1), mx, s), 28)+0xF, 16, exp+i-1));
 	}
 
 	/// \}
