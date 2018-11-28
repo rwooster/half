@@ -33,6 +33,7 @@
 #include <random>
 #include <bitset>
 #include <limits>
+#include <chrono>
 #include <typeinfo>
 #include <stdexcept>
 #include <cstdint>
@@ -53,32 +54,29 @@ int ilog2(int i)
 	return l;
 }
 
-#define UNARY_MATH_TEST(func) { \
-	double err = 0.0, rel = 0.0; int bin = 0; \
-	bool success = unary_test(#func, [&](half arg) -> bool { \
-		half a = func(arg), b = half_cast<half>(std::func(static_cast<double>(arg))); bool equal = comp(a, b); \
-		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		/*std::cerr << arg << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
-		err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n'; }
+#define UNARY_PERFORMANCE_TEST(func, N) { \
+	auto start = std::chrono::high_resolution_clock::now(); \
+	for(unsigned int i=0; i<N; ++i) for(unsigned int h=0; h<xs.size(); ++h) results[h] = func(xs[h]); \
+	times[#func].first = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); \
+	start = std::chrono::high_resolution_clock::now(); \
+	for(unsigned int i=0; i<N; ++i) for(unsigned int h=0; h<xs.size(); ++h) results[h] = half_cast<half>(std::func(half_cast<float>(xs[h]))); \
+	times[#func].second = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); }
 
-#define BINARY_MATH_TEST(func) { \
-	double err = 0.0, rel = 0.0; int bin = 0; \
-	bool success = binary_test(#func, [&](half x, half y) -> bool { \
-		half a = func(x, y), b = half_cast<half>(std::func(static_cast<double>(x), static_cast<double>(y))); bool equal = comp(a, b); \
-		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		/*std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
-		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n'; }
+#define BINARY_PERFORMANCE_TEST(func, N) { \
+	auto start = std::chrono::high_resolution_clock::now(); \
+	for(unsigned int i=0; i<xs.size(); i+=N) for(unsigned int j=0; j<ys.size(); j+=N) results[j] = func(xs[i], ys[j]); \
+	times[#func].first = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); \
+	start = std::chrono::high_resolution_clock::now(); \
+	for(unsigned int i=0; i<xs.size(); i+=N) for(unsigned int j=0; j<ys.size(); j+=N) results[j] = half_cast<half>(std::func(half_cast<float>(xs[i]), half_cast<float>(ys[j]))); \
+	times[#func].second = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); }
 
-#define TERNARY_MATH_TEST(func) { \
-	double err = 0.0, rel = 0.0; int bin = 0; \
-	bool success = ternary_test(#func, [&](half x, half y, half z) -> bool { \
-		half a = func(x, y, z), b = half_cast<half>(std::func(static_cast<double>(x), static_cast<double>(y), static_cast<double>(z))); bool equal = comp(a, b); \
-		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
-		/*std::cerr << x << ", " << y << ", " << z << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;*/ \
-		err = std::max(err, error); rel = std::max(rel, error/std::min(std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y))), std::abs(static_cast<double>(z)))); bin = std::max(bin, std::abs(h2b(a)-h2b(b))); } return equal; }); \
-	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n'; }
+#define OPERATOR_PERFORMANCE_TEST(op, N) { \
+	auto start = std::chrono::high_resolution_clock::now(); \
+	for(unsigned int i=0; i<xs.size(); i+=N) for(unsigned int j=0; j<ys.size(); j+=N) results[j] = xs[i] op ys[j]; \
+	times[#op].first = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); \
+	start = std::chrono::high_resolution_clock::now(); \
+	for(unsigned int i=0; i<xs.size(); i+=N) for(unsigned int j=0; j<ys.size(); j+=N) results[j] = half_cast<half>(half_cast<float>(xs[i]) op half_cast<float>(ys[j])); \
+	times[#op].second = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); }
 
 
 using half_float::half;
@@ -101,13 +99,10 @@ bool comp(half a, half b)
 
 template<std::float_round_style R> half select(const std::pair<half,half> &hh)
 {
-	if(R == std::round_toward_zero)
-		return (abs(hh.first)>abs(hh.second)) ? hh.second : hh.first;
-	if(R == std::round_toward_infinity)
-		return (hh.second>hh.first) ? hh.second : hh.first;
-	if(R == std::round_toward_neg_infinity)
-		return (hh.second<=hh.first) ? hh.second : hh.first;
-	return hh.first;
+	return	(R==std::round_toward_zero && abs(hh.first)>abs(hh.second)) ||
+			(R==std::round_toward_infinity && hh.second>hh.first) ||
+			(R==std::round_toward_neg_infinity && hh.second<=hh.first) ? 
+			hh.second : hh.first;
 }
 
 
@@ -233,9 +228,9 @@ public:
 		unary_reference_test("tan", half_float::tan);
 		unary_reference_test("asin", half_float::asin);
 		unary_reference_test("acos", half_float::acos);
-*/		unary_reference_test("atan", half_float::atan);
+		unary_reference_test("atan", half_float::atan);
 		binary_reference_test("atan2", half_float::atan2);
-/*
+
 		//test hyp functions
 		unary_reference_test("sinh", half_float::sinh);
 		unary_reference_test("cosh", half_float::cosh);
@@ -243,14 +238,12 @@ public:
 		unary_reference_test("asinh", half_float::asinh);
 		unary_reference_test("acosh", half_float::acosh);
 		unary_reference_test("atanh", half_float::atanh);
-
+*/
 		//test err functions
 		unary_reference_test("erf", half_float::erf);
 		unary_reference_test("erfc", half_float::erfc);
-		unary_reference_test("lgamma", half_float::lgamma);
+/*		unary_reference_test("lgamma", half_float::lgamma);
 		unary_reference_test("tgamma", half_float::tgamma);
-		UNARY_MATH_TEST(lgamma);
-		UNARY_MATH_TEST(tgamma);
 
 		//test round functions
 		unary_test("ceil", [](half arg) { return comp(ceil(arg), half_cast<half>(std::ceil(half_cast<double>(arg)))); });
@@ -459,6 +452,67 @@ public:
 			log_ << '\n';
 		}
 		return failed_.size();
+	}
+
+	double performance_test()
+	{
+		std::map<std::string,std::pair<std::chrono::milliseconds,std::chrono::milliseconds>> times;
+		std::vector<half> xs;
+		for(std::uint16_t u=0; u<0x7C00; ++u)
+		{
+			xs.push_back(b2h(u));
+			xs.push_back(b2h(u|0x8000));
+		}
+		std::vector<half> ys(xs), results(xs.size());
+		std::default_random_engine g;
+		std::shuffle(xs.begin(), xs.end(), g);
+		std::shuffle(ys.begin(), ys.end(), g);
+/*
+		OPERATOR_PERFORMANCE_TEST(+, 4);
+		OPERATOR_PERFORMANCE_TEST(-, 4);
+		OPERATOR_PERFORMANCE_TEST(*, 4);
+		OPERATOR_PERFORMANCE_TEST(/, 4);
+
+		UNARY_PERFORMANCE_TEST(exp, 1000);
+		UNARY_PERFORMANCE_TEST(exp2, 1000);
+		UNARY_PERFORMANCE_TEST(expm1, 1000);
+		UNARY_PERFORMANCE_TEST(log, 1000);
+		UNARY_PERFORMANCE_TEST(log10, 1000);
+		UNARY_PERFORMANCE_TEST(log1p, 1000);
+		UNARY_PERFORMANCE_TEST(log2, 1000);
+
+		UNARY_PERFORMANCE_TEST(sqrt, 1000);
+		UNARY_PERFORMANCE_TEST(cbrt, 1000);
+		BINARY_PERFORMANCE_TEST(hypot, 8);
+		BINARY_PERFORMANCE_TEST(pow, 8);
+
+		UNARY_PERFORMANCE_TEST(sin, 1000);
+		UNARY_PERFORMANCE_TEST(cos, 1000);
+		UNARY_PERFORMANCE_TEST(tan, 1000);
+		UNARY_PERFORMANCE_TEST(asin, 1000);
+		UNARY_PERFORMANCE_TEST(acos, 1000);
+		UNARY_PERFORMANCE_TEST(atan, 1000);
+		BINARY_PERFORMANCE_TEST(atan2, 8);
+
+		UNARY_PERFORMANCE_TEST(sinh, 1000);
+		UNARY_PERFORMANCE_TEST(cosh, 1000);
+		UNARY_PERFORMANCE_TEST(tanh, 1000);
+		UNARY_PERFORMANCE_TEST(asinh, 1000);
+		UNARY_PERFORMANCE_TEST(acosh, 1000);
+		UNARY_PERFORMANCE_TEST(atanh, 1000);
+
+		UNARY_PERFORMANCE_TEST(erf, 1000);
+		UNARY_PERFORMANCE_TEST(erfc, 1000);
+*/
+		double avg = 0.0;
+		for(auto &tm : times)
+		{
+			double speedup = double(tm.second.second.count()) / double(tm.second.first.count());
+			avg += speedup;
+			log_ << tm.first << ":\t" << tm.second.second.count() << " / " << tm.second.first.count() << " -> " << speedup << "\n\n";
+		}
+		log_ << "average speedup: " << (avg/=times.size()) << '\n';
+		return avg;
 	}
 
 private:
@@ -699,13 +753,14 @@ private:
 			if(!equal)
 			{
 				double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
+//				if(std::abs(h2b(a)-h2b(b)) > 1)
 //				std::cerr << arg << '(' << std::hex << h2b(arg) << ") = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
 				err = std::max(err, error); rel = std::max(rel, error/std::abs(b)); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
 			}
 			return equal;
 		});
 		if(err != 0.0 || rel != 0.0)
-			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n';
+			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max ulp error: " << /*ilog2*/(bin) << '\n';
 		return success;
 	}
 
@@ -740,7 +795,7 @@ private:
 		if(passed != count)
 			std::cout << name << ": " << (count-passed) << " of " << count << " failed\n";
 		if(err != 0.0 || rel != 0.0)
-			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n';
+			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max ulp error: " << /*ilog2*/(bin) << '\n';
 		return success;
 	}
 
@@ -775,7 +830,7 @@ private:
 		if(passed != count)
 			std::cout << name << ": " << (count-passed) << " of " << count << " failed\n";
 		if(err != 0.0 || rel != 0.0)
-			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max bit error: " << ilog2(bin) << '\n';
+			std::cout << name << " max error: " << err << ", max relative error: " << rel << ", max ulp error: " << /*ilog2*/(bin) << '\n';
 		return success;
 	}
 
@@ -788,7 +843,6 @@ private:
 	bool rough_;
 };
 
-#include <chrono>
 struct timer
 {
 	timer() : start_(std::chrono::high_resolution_clock::now()) {}
@@ -802,11 +856,11 @@ int main(int argc, char *argv[]) try
 {
 	switch(std::numeric_limits<half>::round_style)
 	{
-	case std::round_indeterminate: std::fesetround(FE_TOWARDZERO); break;
-	case std::round_to_nearest: std::fesetround(FE_TONEAREST); break;
-	case std::round_toward_zero: std::fesetround(FE_TOWARDZERO); break;
-	case std::round_toward_infinity: std::fesetround(FE_UPWARD); break;
-	case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
+		case std::round_indeterminate: std::fesetround(FE_TOWARDZERO); break;
+		case std::round_to_nearest: std::fesetround(FE_TONEAREST); break;
+		case std::round_toward_zero: std::fesetround(FE_TOWARDZERO); break;
+		case std::round_toward_infinity: std::fesetround(FE_UPWARD); break;
+		case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
 	}
 /*
 	auto rand_abs = std::bind(std::uniform_int_distribution<std::uint32_t>(0x00000000, 0x7F100000), std::default_random_engine());
@@ -871,52 +925,18 @@ int main(int argc, char *argv[]) try
 			return 0;
 	}
 
-	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0705230784l, 31+4)) << '\n';
-	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0422820123l, 31+5)) << '\n';
-	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0092705272l, 31+7)) << '\n';
-	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0001520143l, 31+13)) << '\n';
-	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0002765672l, 31+12)) << '\n';
-	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(0.0000430638l, 31+15)) << '\n';
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(3.15l, 31-1)) << '\n';
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(3.85l, 31-1)) << '\n';
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(4.65l, 31-2)) << '\n';
 	return 0;
 
-	static const unsigned int N = 1000;
-	std::vector<half> halfs, results;
-	for(std::uint16_t u=0; u<0x7C00; ++u)
-	{
-		halfs.push_back(b2h(u));
-		halfs.push_back(b2h(u|0x8000));
-	}
-	results.reserve(N*halfs.size());
-	std::shuffle(halfs.begin(), halfs.end(), std::default_random_engine());
-	{
-		timer time;
-		for(unsigned int i=0; i<N; ++i)
-			for(auto h : halfs)
-				results.push_back(acos(h));
-//				results.push_back(half_cast<half>(std::acosh(half_cast<float>(h))));
-	}
-	std::cout << std::accumulate(results.begin(), results.end(), 0.0f) << '\n';
+	std::cout << std::hexfloat << std::setprecision(13) << std::lgamma(0.5) << '\n';
+	std::cout << std::hexfloat << std::setprecision(13) << std::tgamma(0.5) << '\n';
 	return 0;
 
-	std::vector<half> xs, ys, results;
-	for(std::uint16_t u=0; u<0x7C00; u+=8)
-	{
-		xs.push_back(b2h(u));
-		xs.push_back(b2h(u|0x8000));
-	}
-	ys = xs;
-	results.reserve(xs.size()*ys.size());
-	std::default_random_engine g;
-	std::shuffle(xs.begin(), xs.end(), g);
-	std::shuffle(ys.begin(), ys.end(), g);
-	{
-		timer time;
-		for(auto x : xs)
-			for(auto y : ys)
-//				results.push_back(atan2(x, y));
-				results.push_back(half_cast<half>(std::atan2(half_cast<float>(x), half_cast<float>(y))));
-	}
-	std::cout << std::accumulate(results.begin(), results.end(), 0.0f) << '\n';
+	using namespace half_float::literal;
+	std::cout << std::lgamma(2.5) << '\n';
+	std::cout << lgamma(2.5_h) << '\n';
 	return 0;
 */
 	std::vector<std::string> args(argv+1, argv+argc);
@@ -932,7 +952,10 @@ int main(int argc, char *argv[]) try
 			file.reset(new std::ofstream(arg));
 	}
 	half_test test(file ? *file : std::cout, fast, rough);
-
+/*
+	test.performance_test();
+	return 0;
+*/
 	timer time;
 	return test.test();
 }

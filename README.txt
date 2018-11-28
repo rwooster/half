@@ -190,9 +190,9 @@ between the inputs and outputs. However, directly computing with half-precision
 values is a rather rare use-case and usually using actual `float` values for 
 all computations and temproraries and using [half](\ref half_float::half)s only 
 for storage is the recommended way. But nevertheless the goal of this library 
-was to provide a complete and conceptually clean half-precision implementation 
-and in the few cases when you do need to compute directly in half-precision you 
-do so for a reason and want precise results.
+was to provide a complete and conceptually clean IEEE-confromant half-precision 
+implementation and in the few cases when you do need to compute directly in 
+half-precision you do so for a reason and want precise results.
 
 As to accuracy, many of the operators and functions provided by this library 
 are exact to rounding for all [rounding modes](\ref HALF_ROUND_STYLE), i.e. the 
