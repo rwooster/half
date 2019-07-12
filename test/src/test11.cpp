@@ -1,6 +1,6 @@
 // test - Test application for half-precision floating point functionality.
 //
-// Copyright (c) 2012-2017 Christian Rau <rauy@users.sourceforge.net>
+// Copyright (c) 2012-2019 Christian Rau <rauy@users.sourceforge.net>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation 
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, 
@@ -238,11 +238,11 @@ public:
 		unary_reference_test("asinh", half_float::asinh);
 		unary_reference_test("acosh", half_float::acosh);
 		unary_reference_test("atanh", half_float::atanh);
-*/
+
 		//test err functions
 		unary_reference_test("erf", half_float::erf);
 		unary_reference_test("erfc", half_float::erfc);
-/*		unary_reference_test("lgamma", half_float::lgamma);
+		unary_reference_test("lgamma", half_float::lgamma);
 		unary_reference_test("tgamma", half_float::tgamma);
 
 		//test round functions
@@ -928,6 +928,8 @@ int main(int argc, char *argv[]) try
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(3.15l, 31-1)) << '\n';
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(3.85l, 31-1)) << '\n';
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(4.65l, 31-2)) << '\n';
+
+	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << std::llrint(std::ldexp(1./3.1415926535897932384626433832795l, 61)) << '\n';
 	return 0;
 
 	std::cout << std::hexfloat << std::setprecision(13) << std::lgamma(0.5) << '\n';
@@ -952,10 +954,9 @@ int main(int argc, char *argv[]) try
 			file.reset(new std::ofstream(arg));
 	}
 	half_test test(file ? *file : std::cout, fast, rough);
-/*
+
 	test.performance_test();
-	return 0;
-*/
+
 	timer time;
 	return test.test();
 }
