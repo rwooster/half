@@ -14,6 +14,8 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+//#define HALF_ENABLE_F16C_INTRINSICS 1
+//#define HALF_ARITHMETIC_TYPE double
 #define HALF_ROUND_STYLE 1
 #include <half.hpp>
 
@@ -42,7 +44,7 @@
 	#include <unordered_map>
 #endif
 
-#if HALF_ENABLE_CPP11_CMATH
+#if HALF_ENABLE_CPP11_CMATH && !defined(HALF_ARITHMETIC_TYPE)
 	#include <cfenv>
 	#pragma STDC FENV_ACCESS ON
 #endif
@@ -54,29 +56,20 @@ int ilog2(int i)
 	return l;
 }
 
-#define UNARY_PERFORMANCE_TEST(func, N) { \
+#define UNARY_PERFORMANCE_TEST(func, x, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
-	for(unsigned int i=0; i<N; ++i) for(unsigned int h=0; h<xs.size(); ++h) results[h] = func(xs[h]); \
-	times[#func].first = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); \
-	start = std::chrono::high_resolution_clock::now(); \
-	for(unsigned int i=0; i<N; ++i) for(unsigned int h=0; h<xs.size(); ++h) results[h] = half_cast<half>(std::func(half_cast<float>(xs[h]))); \
-	times[#func].second = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); }
+	for(unsigned int i=0; i<N; ++i) for(unsigned int h=0; h<x.size(); ++h) results[h] = func(x[h]); \
+	log_ << #func << "\tx " << N << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
 
-#define BINARY_PERFORMANCE_TEST(func, N) { \
+#define BINARY_PERFORMANCE_TEST(func, x, y, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
-	for(unsigned int i=0; i<xs.size(); i+=N) for(unsigned int j=0; j<ys.size(); j+=N) results[j] = func(xs[i], ys[j]); \
-	times[#func].first = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); \
-	start = std::chrono::high_resolution_clock::now(); \
-	for(unsigned int i=0; i<xs.size(); i+=N) for(unsigned int j=0; j<ys.size(); j+=N) results[j] = half_cast<half>(std::func(half_cast<float>(xs[i]), half_cast<float>(ys[j]))); \
-	times[#func].second = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); }
+	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) results[j] = func(x[i], y[j]); \
+	log_ << #func << "\t@ 1/" << (N*N) << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
 
-#define OPERATOR_PERFORMANCE_TEST(op, N) { \
+#define OPERATOR_PERFORMANCE_TEST(op, x, y, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
-	for(unsigned int i=0; i<xs.size(); i+=N) for(unsigned int j=0; j<ys.size(); j+=N) results[j] = xs[i] op ys[j]; \
-	times[#op].first = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); \
-	start = std::chrono::high_resolution_clock::now(); \
-	for(unsigned int i=0; i<xs.size(); i+=N) for(unsigned int j=0; j<ys.size(); j+=N) results[j] = half_cast<half>(half_cast<float>(xs[i]) op half_cast<float>(ys[j])); \
-	times[#op].second = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start); }
+	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) results[j] = x[i] op y[j]; \
+	log_ << #op << "\t@ 1/" << (N*N) << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
 
 
 using half_float::half;
@@ -454,65 +447,70 @@ public:
 		return failed_.size();
 	}
 
-	double performance_test()
+	void performance_test()
 	{
-		std::map<std::string,std::pair<std::chrono::milliseconds,std::chrono::milliseconds>> times;
-		std::vector<half> xs;
+		std::vector<half> finite, positive, one2one, one2inf, neg2inf;
 		for(std::uint16_t u=0; u<0x7C00; ++u)
 		{
-			xs.push_back(b2h(u));
-			xs.push_back(b2h(u|0x8000));
+			finite.push_back(b2h(u));
+			finite.push_back(b2h(u|0x8000));
+			positive.push_back(b2h(u));
+			neg2inf.push_back(b2h(u));
+			if(u <= 0x3C00)
+			{
+				one2one.push_back(b2h(u));
+				one2one.push_back(b2h(u|0x8000));
+				neg2inf.push_back(b2h(u|0x8000));
+			}
+			else
+				one2inf.push_back(b2h(u));
 		}
-		std::vector<half> ys(xs), results(xs.size());
+		std::vector<half> xs(finite), ys(finite), results(finite.size());
 		std::default_random_engine g;
+		std::shuffle(finite.begin(), finite.end(), g);
+		std::shuffle(positive.begin(), positive.end(), g);
+		std::shuffle(one2one.begin(), one2one.end(), g);
+		std::shuffle(one2inf.begin(), one2inf.end(), g);
+		std::shuffle(neg2inf.begin(), neg2inf.end(), g);
 		std::shuffle(xs.begin(), xs.end(), g);
 		std::shuffle(ys.begin(), ys.end(), g);
 /*
-		OPERATOR_PERFORMANCE_TEST(+, 4);
-		OPERATOR_PERFORMANCE_TEST(-, 4);
-		OPERATOR_PERFORMANCE_TEST(*, 4);
-		OPERATOR_PERFORMANCE_TEST(/, 4);
+		OPERATOR_PERFORMANCE_TEST(+, xs, ys, 4);
+		OPERATOR_PERFORMANCE_TEST(-, xs, ys, 4);
+		OPERATOR_PERFORMANCE_TEST(*, xs, ys, 4);
+		OPERATOR_PERFORMANCE_TEST(/, xs, ys, 4);
 
-		UNARY_PERFORMANCE_TEST(exp, 1000);
-		UNARY_PERFORMANCE_TEST(exp2, 1000);
-		UNARY_PERFORMANCE_TEST(expm1, 1000);
-		UNARY_PERFORMANCE_TEST(log, 1000);
-		UNARY_PERFORMANCE_TEST(log10, 1000);
-		UNARY_PERFORMANCE_TEST(log1p, 1000);
-		UNARY_PERFORMANCE_TEST(log2, 1000);
+		UNARY_PERFORMANCE_TEST(exp, finite, 1000);
+		UNARY_PERFORMANCE_TEST(exp2, finite, 1000);
+		UNARY_PERFORMANCE_TEST(expm1, finite, 1000);
+		UNARY_PERFORMANCE_TEST(log, positive, 1000);
+		UNARY_PERFORMANCE_TEST(log10, positive, 1000);
+		UNARY_PERFORMANCE_TEST(log1p, neg2inf, 1000);
+		UNARY_PERFORMANCE_TEST(log2, positive, 1000);
 
-		UNARY_PERFORMANCE_TEST(sqrt, 1000);
-		UNARY_PERFORMANCE_TEST(cbrt, 1000);
-		BINARY_PERFORMANCE_TEST(hypot, 8);
-		BINARY_PERFORMANCE_TEST(pow, 8);
+		UNARY_PERFORMANCE_TEST(sqrt, positive, 1000);
+		UNARY_PERFORMANCE_TEST(cbrt, finite, 1000);
+		BINARY_PERFORMANCE_TEST(hypot, xs, ys, 8);
+		BINARY_PERFORMANCE_TEST(pow, xs, ys, 8);
 
-		UNARY_PERFORMANCE_TEST(sin, 1000);
-		UNARY_PERFORMANCE_TEST(cos, 1000);
-		UNARY_PERFORMANCE_TEST(tan, 1000);
-		UNARY_PERFORMANCE_TEST(asin, 1000);
-		UNARY_PERFORMANCE_TEST(acos, 1000);
-		UNARY_PERFORMANCE_TEST(atan, 1000);
-		BINARY_PERFORMANCE_TEST(atan2, 8);
+		UNARY_PERFORMANCE_TEST(sin, finite, 1000);
+		UNARY_PERFORMANCE_TEST(cos, finite, 1000);
+		UNARY_PERFORMANCE_TEST(tan, finite, 1000);
+		UNARY_PERFORMANCE_TEST(asin, one2one, 1000);
+		UNARY_PERFORMANCE_TEST(acos, one2one, 1000);
+		UNARY_PERFORMANCE_TEST(atan, finite, 1000);
+		BINARY_PERFORMANCE_TEST(atan2, xs, ys, 8);
 
-		UNARY_PERFORMANCE_TEST(sinh, 1000);
-		UNARY_PERFORMANCE_TEST(cosh, 1000);
-		UNARY_PERFORMANCE_TEST(tanh, 1000);
-		UNARY_PERFORMANCE_TEST(asinh, 1000);
-		UNARY_PERFORMANCE_TEST(acosh, 1000);
-		UNARY_PERFORMANCE_TEST(atanh, 1000);
+		UNARY_PERFORMANCE_TEST(sinh, finite, 1000);
+		UNARY_PERFORMANCE_TEST(cosh, finite, 1000);
+		UNARY_PERFORMANCE_TEST(tanh, finite, 1000);
+		UNARY_PERFORMANCE_TEST(asinh, finite, 1000);
+		UNARY_PERFORMANCE_TEST(acosh, one2inf, 1000);
+		UNARY_PERFORMANCE_TEST(atanh, one2one, 1000);
 
-		UNARY_PERFORMANCE_TEST(erf, 1000);
-		UNARY_PERFORMANCE_TEST(erfc, 1000);
+		UNARY_PERFORMANCE_TEST(erf, finite, 1000);
+		UNARY_PERFORMANCE_TEST(erfc, finite, 1000);
 */
-		double avg = 0.0;
-		for(auto &tm : times)
-		{
-			double speedup = double(tm.second.second.count()) / double(tm.second.first.count());
-			avg += speedup;
-			log_ << tm.first << ":\t" << tm.second.second.count() << " / " << tm.second.first.count() << " -> " << speedup << "\n\n";
-		}
-		log_ << "average speedup: " << (avg/=times.size()) << '\n';
-		return avg;
 	}
 
 private:
@@ -854,6 +852,7 @@ private:
 
 int main(int argc, char *argv[]) try
 {
+#ifndef HALF_ARITHMETIC_TYPE
 	switch(std::numeric_limits<half>::round_style)
 	{
 		case std::round_indeterminate: std::fesetround(FE_TOWARDZERO); break;
@@ -862,6 +861,7 @@ int main(int argc, char *argv[]) try
 		case std::round_toward_infinity: std::fesetround(FE_UPWARD); break;
 		case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
 	}
+#endif
 /*
 	auto rand_abs = std::bind(std::uniform_int_distribution<std::uint32_t>(0x00000000, 0x7F100000), std::default_random_engine());
 	auto rand_sign = std::bind(std::uniform_int_distribution<std::uint32_t>(0, 1), std::default_random_engine());
