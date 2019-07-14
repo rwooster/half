@@ -3003,9 +3003,9 @@ namespace half_float
 			std::swap(absx, absy);
 		if(absz > absy)
 			std::swap(absy, absz);
-		for(; absx<0x400; absx<<=1, --expx);
-		for(; absy<0x400; absy<<=1, --expy);
-		for(; absz<0x400; absz<<=1, --expz);
+		for(; absx<0x400; absx<<=1,--expx) ;
+		for(; absy<0x400; absy<<=1,--expy) ;
+		for(; absz<0x400; absz<<=1,--expz) ;
 		detail::uint32 mx = (absx&0x3FF) | 0x400, my = (absy&0x3FF) | 0x400, mz = (absz&0x3FF) | 0x400;
 		mx *= mx;
 		my *= my;
@@ -3136,7 +3136,7 @@ namespace half_float
 		if(!abs)
 			return arg;
 		std::pair<detail::uint32,detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 28);
-		detail::uint32 sign = -(((k>>1)&1)^(arg.data_>>15));
+		detail::uint32 sign = -static_cast<detail::uint32>(((k>>1)&1)^(arg.data_>>15));
 		return half(detail::binary, detail::fixed2half<half::round_style,30,true,true>((((k&1) ? sc.second : sc.first)^sign) - sign));
 	#endif
 	}
@@ -3157,7 +3157,7 @@ namespace half_float
 		if(!abs)
 			return half(detail::binary, 0x3C00);
 		std::pair<detail::uint32,detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 28);
-		detail::uint32 sign = -(((k>>1)^k)&1);
+		detail::uint32 sign = -static_cast<detail::uint32>(((k>>1)^k)&1);
 		return half(detail::binary, detail::fixed2half<half::round_style,30,true,true>((((k&1) ? sc.first : sc.second)^sign) - sign));
 	#endif
 	}
@@ -3190,7 +3190,7 @@ namespace half_float
 
 	/// Arc sine.
 	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result in ~5% of inputs for `std::round_toward_zero` and in ~10% of inputs for any other rounding mode.
+	/// result in ~0.005% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return arc sine value of \a arg
 	inline half asin(half arg)
@@ -3204,7 +3204,7 @@ namespace half_float
 		if(abs >= 0x3C00)
 			return half(detail::binary, (abs==0x3C00) ? detail::rounded<half::round_style>(value|0x3E48, 0, 1) : 0x7FFF);
 		std::pair<detail::uint32,detail::uint32> sc = detail::atan2_args(abs);
-		detail::uint32 m = detail::atan2(sc.first, sc.second);
+		detail::uint32 m = detail::atan2(sc.first, sc.second, (half::round_style==std::round_to_nearest) ? 27 : 26);
 		return half(detail::binary, detail::fixed2half<half::round_style,30,false,true>(m, 14, value));
 	#endif
 	}
@@ -3224,14 +3224,14 @@ namespace half_float
 		if(abs >= 0x3C00)
 			return half(detail::binary, (abs==0x3C00) ? (detail::rounded<half::round_style>(0x4248, 0, 1)&-sign) : 0x7FFF);
 		std::pair<detail::uint32,detail::uint32> cs = detail::atan2_args(abs);
-		detail::uint32 m = detail::atan2(cs.second, cs.first);
+		detail::uint32 m = detail::atan2(cs.second, cs.first, 28);
 		return half(detail::binary, detail::fixed2half<half::round_style,31,false,true>(sign ? (0xC90FDAA2-m) : m, 15, 0, sign));
 	#endif
 	}
 
 	/// Arc tangent function.
-	/// \details This function may be 1 ulp off the correctly rounded result in <0.01% of inputs for `std::round_to_nearest` 
-	/// and in <10% of inputs for any other rounding mode.
+	/// \details This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
+	/// result in ~1% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return arc tangent value of \a arg
 	inline half atan(half arg)
@@ -3244,7 +3244,8 @@ namespace half_float
 			return (abs==0x7C00) ? half(detail::binary, detail::rounded<half::round_style>(value|0x3E48, 0, 1)) : arg;
 		int exp = (abs>>10) + (abs<=0x3FF);
 		detail::uint32 my = (abs&0x3FF) | ((abs>0x3FF)<<10);
-		detail::uint32 m = (exp>15) ? detail::atan2(my<<19, 0x20000000>>(exp-15)) : detail::atan2(my<<(exp+4), 0x20000000);
+		detail::uint32 m = (exp>15) ?	detail::atan2(my<<19, 0x20000000>>(exp-15), (half::round_style==std::round_to_nearest) ? 26 : 24) :
+										detail::atan2(my<<(exp+4), 0x20000000, (half::round_style==std::round_to_nearest) ? 30 : 28);
 		return half(detail::binary, detail::fixed2half<half::round_style,30,false,true>(m, 14, value));
 	#endif
 	}
