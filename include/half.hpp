@@ -3312,7 +3312,7 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF, exp;
 		if(!abs || abs >= 0x7C00)
 			return arg;
-		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 32);
+		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, (half::round_style==std::round_to_nearest) ? 29 : 32);
 		detail::uint32 m = mm.first - mm.second;
 		for(exp+=13; m<0x80000000 && exp; m<<=1,--exp) ;
 		unsigned int value = arg.data_ & 0x8000;
@@ -3337,7 +3337,7 @@ namespace half_float
 			return half(detail::binary, 0x3C00);
 		if(abs >= 0x7C00)
 			return half(detail::binary, 0x7C00|-static_cast<unsigned>(abs>0x7C00));
-		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 23);
+		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, (half::round_style==std::round_to_nearest) ? 23 : 26);
 		detail::uint32 m = mm.first + mm.second, i = ~(m&0xFFFFFFFF) >> 31;
 		m = (m>>i) | (m&i) | 0x80000000;
 		if((exp+=13+i) > 29)
@@ -3419,8 +3419,8 @@ namespace half_float
 		detail::uint32 m = static_cast<detail::uint32>((abs&0x3FF)|((abs>0x3FF)<<10)) << ((abs>>10)+(abs<=0x3FF)+6), my = 0x80000000 + m, mx = 0x80000000 - m;
 		for(; mx<0x80000000; mx<<=1,++exp) ;
 		int i = my >= mx, s;
-		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(
-			detail::log2((detail::divide64(my>>i, mx, s)+1)>>1, 32)+0x10, 16, exp+i-1, arg.data_&0x8000));
+		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(detail::log2((detail::divide64(my>>i, mx, s)+1)>>1,
+			(half::round_style==std::round_to_nearest) ? 27 : 32)+0x10, 16, exp+i-1, arg.data_&0x8000));
 	#endif
 	}
 
