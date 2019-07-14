@@ -490,8 +490,8 @@ public:
 
 		UNARY_PERFORMANCE_TEST(sqrt, positive, 1000);
 		UNARY_PERFORMANCE_TEST(cbrt, finite, 1000);
-		BINARY_PERFORMANCE_TEST(hypot, xs, ys, 8);
 		BINARY_PERFORMANCE_TEST(pow, xs, ys, 8);
+		BINARY_PERFORMANCE_TEST(hypot, xs, ys, 8);
 
 		UNARY_PERFORMANCE_TEST(sin, finite, 1000);
 		UNARY_PERFORMANCE_TEST(cos, finite, 1000);

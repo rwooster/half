@@ -219,9 +219,9 @@
 
 /// Default rounding mode.
 /// This specifies the rounding mode used for all conversions between [half](\ref half_float::half)s and more precise types 
-/// (unless using half_cast() and specifying the orunding mode directly) as well as in arithmetic operations and mathematical 
-/// functions for the half_cast() if not specifying a rounding mode explicitly. It can be redefined (before including half.hpp) 
-/// to one of the standard rounding modes using their respective constants or the equivalent values of 
+/// (unless using half_cast() and specifying the rounding mode directly) as well as in arithmetic operations and mathematical 
+/// functions. It can be redefined (before including half.hpp) to one of the standard rounding modes using their respective 
+/// constants or the equivalent values of 
 /// [std::float_round_style](http://en.cppreference.com/w/cpp/types/numeric_limits/float_round_style):
 ///
 /// `std::float_round_style`         | value | rounding
@@ -236,7 +236,7 @@
 /// be set to [std::numeric_limits<float>::round_style](http://en.cppreference.com/w/cpp/types/numeric_limits/round_style) to synchronize 
 /// the rounding mode with that of the built-in single-precision implementation (which is likely `std::round_to_nearest`, though).
 #ifndef HALF_ROUND_STYLE
-	#define HALF_ROUND_STYLE	(-1)		// = std::round_indeterminate
+	#define HALF_ROUND_STYLE	(1)		// = std::round_to_nearest
 #endif
 
 /// Value signaling overflow.
@@ -515,7 +515,7 @@ namespace half_float
 		template<std::float_round_style R> unsigned int float2half_impl(float value, true_type)
 		{
 		#if HALF_ENABLE_F16C_INTRINSICS
-			return _mm_cvtsi128_si32(_mm_cvtps_ph(	_mm_set_ss(value),
+			return _mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(value),
 				(R==std::round_to_nearest) ? _MM_FROUND_TO_NEAREST_INT :
 				(R==std::round_toward_infinity) ? _MM_FROUND_TO_POS_INF :
 				(R==std::round_toward_neg_infinity) ? _MM_FROUND_TO_NEG_INF :

@@ -228,7 +228,7 @@ of the built-in floating point types ('float', 'double' or 'long double'),
 which will cause the library to use this type for computing arithmetic 
 operations and mathematical functions (if available). However, due to using the 
 platform's floating point implementation (and its rounding behaviour) 
-internally, this might cause results to slightly deviate from the specified 
+internally, this might cause results to deviate from the specified 
 half-precision rounding mode.
 
 The conversion operations between half-precision and single-precision types can 
