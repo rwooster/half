@@ -3209,8 +3209,7 @@ namespace half_float
 	}
 
 	/// Arc tangent function.
-	/// This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result in ~1% of inputs for any other rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return arc tangent value of \a arg
 	inline half atan(half arg)
@@ -3221,6 +3220,8 @@ namespace half_float
 		unsigned int abs = arg.data_ & 0x7FFF, value = arg.data_ & 0x8000;
 		if(!abs || abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, detail::rounded<half::round_style>(value|0x3E48, 0, 1)) : arg;
+		if(abs <= 0x2700)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_-1, 1, 1));
 		int exp = (abs>>10) + (abs<=0x3FF);
 		detail::uint32 my = (abs&0x3FF) | ((abs>0x3FF)<<10);
 		detail::uint32 m = (exp>15) ?	detail::atan2(my<<19, 0x20000000>>(exp-15), (half::round_style==std::round_to_nearest) ? 26 : 24) :
