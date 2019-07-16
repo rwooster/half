@@ -3130,8 +3130,7 @@ namespace half_float
 	}
 
 	/// Cosine function.
-	/// This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result in <0.1% of inputs for `std::round_toward_infinity` and in ~0.5% of inputs for any other rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return cosine value of \a arg
 	inline half cos(half arg)
@@ -3144,6 +3143,10 @@ namespace half_float
 			return half(detail::binary, 0x7FFF);
 		if(!abs)
 			return half(detail::binary, 0x3C00);
+		if(abs < 0x2500)
+			return half(detail::binary, detail::rounded<half::round_style>(0x3BFF, 1, 1));
+		if(half::round_style != std::round_to_nearest && abs == 0x598C)
+			return half(detail::binary, detail::rounded<half::round_style>(0x80FC, 1, 1));
 		std::pair<detail::uint32,detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 28);
 		detail::uint32 sign = -static_cast<detail::uint32>(((k>>1)^k)&1);
 		return half(detail::binary, detail::fixed2half<half::round_style,30,true,true>((((k&1) ? sc.first : sc.second)^sign) - sign));
@@ -3151,8 +3154,7 @@ namespace half_float
 	}
 
 	/// Tangent function.
-	/// This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result in ~5% of inputs for any other rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return tangent value of \a arg
 	inline half tan(half arg)
@@ -3165,6 +3167,16 @@ namespace half_float
 			return half(detail::binary, 0x7FFF);
 		if(!abs)
 			return arg;
+		if(abs < 0x2700)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_, 0, 1));
+		if(half::round_style != std::round_to_nearest)
+		{
+			switch(abs)
+			{
+			case 0x658C: return half(detail::binary, detail::rounded<half::round_style>((arg.data_&0x8000)|0x07E6, 1, 1));
+			case 0x7330: return half(detail::binary, detail::rounded<half::round_style>((~arg.data_&0x8000)|0x4B62, 1, 1));
+			}
+		}
 		std::pair<detail::uint32,detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 30);
 		if(k & 1)
 			sc = std::make_pair(-sc.second, sc.first);
