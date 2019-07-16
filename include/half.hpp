@@ -3164,8 +3164,7 @@ namespace half_float
 	}
 
 	/// Arc sine.
-	/// This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result in ~0.005% of inputs for any other rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return arc sine value of \a arg
 	inline half asin(half arg)
@@ -3178,6 +3177,8 @@ namespace half_float
 			return arg;
 		if(abs >= 0x3C00)
 			return half(detail::binary, (abs==0x3C00) ? detail::rounded<half::round_style>(value|0x3E48, 0, 1) : 0x7FFF);
+		if(half::round_style != std::round_to_nearest && abs == 0x2B44 || abs == 0x2DC3)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_+1, 1, 1));
 		std::pair<detail::uint32,detail::uint32> sc = detail::atan2_args(abs);
 		detail::uint32 m = detail::atan2(sc.first, sc.second, (half::round_style==std::round_to_nearest) ? 27 : 26);
 		return half(detail::binary, detail::fixed2half<half::round_style,30,false,true>(m, 14, value));
