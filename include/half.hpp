@@ -2759,7 +2759,6 @@ namespace half_float
 		if(abs >= 0x7C00)
 			return arg;
 		if(half::round_style != std::round_to_nearest)
-		{
 			switch(abs)
 			{
 			case 0x4900: return half(detail::binary, 0x3C00);
@@ -2767,7 +2766,6 @@ namespace half_float
 			case 0x63D0: return half(detail::binary, 0x4200);
 			case 0x70E2: return half(detail::binary, 0x4400);
 			}
-		}
 		for(; abs<0x400; abs<<=1,--exp) ;
 		exp += abs >> 10;
 		return half(detail::binary, detail::log2_post<half::round_style,0xD49A784C>(
@@ -3068,6 +3066,8 @@ namespace half_float
 
 	/// Compute sine and cosine simultaneously.
 	///	This returns the same results as sin() and cos() but is faster than calling each function individually.
+	///
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \param sin variable to take sine of \a arg
 	/// \param cos variable to take cosine of \a arg
@@ -3083,8 +3083,35 @@ namespace half_float
 			{ *sin = half(detail::binary, 0x7FFF); *cos = half(detail::binary, 0x7FFF); }
 		else if(!abs)
 			{ *sin = arg; *cos = half(detail::binary, 0x3C00); }
+		else if(abs < 0x2500)
+		{
+			*sin = half(detail::binary, detail::rounded<half::round_style>(arg.data_-1, 1, 1));
+			*cos = half(detail::binary, detail::rounded<half::round_style>(0x3BFF, 1, 1));
+		}
 		else
 		{
+			if(half::round_style != std::round_to_nearest)
+			{
+				switch(abs)
+				{
+				case 0x48B7:
+					*sin = half(detail::binary, detail::rounded<half::round_style>((~arg.data_&0x8000)|0x1D07, 1, 1));
+					*cos = half(detail::binary, detail::rounded<half::round_style>(0xBBFF, 1, 1));
+					return;
+				case 0x598C:
+					*sin = half(detail::binary, detail::rounded<half::round_style>((arg.data_&0x8000)|0x3BFF, 1, 1));
+					*cos = half(detail::binary, detail::rounded<half::round_style>(0x80FC, 1, 1));
+					return;
+				case 0x6A64:
+					*sin = half(detail::binary, detail::rounded<half::round_style>((~arg.data_&0x8000)|0x3BFE, 1, 1));
+					*cos = half(detail::binary, detail::rounded<half::round_style>(0x27FF, 1, 1));
+					return;
+				case 0x6D8C:
+					*sin = half(detail::binary, detail::rounded<half::round_style>((arg.data_&0x8000)|0x0FE6, 1, 1));
+					*cos = half(detail::binary, detail::rounded<half::round_style>(0x3BFF, 1, 1));
+					return;
+				}
+			}
 			std::pair<detail::uint32,detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 28);
 			switch(k & 3)
 			{
@@ -3115,14 +3142,12 @@ namespace half_float
 		if(abs < 0x2900)
 			return half(detail::binary, detail::rounded<half::round_style>(arg.data_-1, 1, 1));
 		if(half::round_style != std::round_to_nearest)
-		{
 			switch(abs)
 			{
 			case 0x48B7: return half(detail::binary, detail::rounded<half::round_style>((~arg.data_&0x8000)|0x1D07, 1, 1));
 			case 0x6A64: return half(detail::binary, detail::rounded<half::round_style>((~arg.data_&0x8000)|0x3BFE, 1, 1));
 			case 0x6D8C: return half(detail::binary, detail::rounded<half::round_style>((arg.data_&0x8000)|0x0FE6, 1, 1));
 			}
-		}
 		std::pair<detail::uint32,detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 28);
 		detail::uint32 sign = -static_cast<detail::uint32>(((k>>1)&1)^(arg.data_>>15));
 		return half(detail::binary, detail::fixed2half<half::round_style,30,true,true>((((k&1) ? sc.second : sc.first)^sign) - sign));
@@ -3170,13 +3195,11 @@ namespace half_float
 		if(abs < 0x2700)
 			return half(detail::binary, detail::rounded<half::round_style>(arg.data_, 0, 1));
 		if(half::round_style != std::round_to_nearest)
-		{
 			switch(abs)
 			{
 			case 0x658C: return half(detail::binary, detail::rounded<half::round_style>((arg.data_&0x8000)|0x07E6, 1, 1));
 			case 0x7330: return half(detail::binary, detail::rounded<half::round_style>((~arg.data_&0x8000)|0x4B62, 1, 1));
 			}
-		}
 		std::pair<detail::uint32,detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 30);
 		if(k & 1)
 			sc = std::make_pair(-sc.second, sc.first);
@@ -3388,13 +3411,11 @@ namespace half_float
 		if(abs <= 0x2900)
 			return half(detail::binary, detail::rounded<half::round_style>(arg.data_-1, 1, 1));
 		if(half::round_style != std::round_to_nearest)
-		{
 			switch(abs)
 			{
 			case 0x32D4: return half(detail::binary, detail::rounded<half::round_style>(arg.data_-13, 1, 1));
 			case 0x3B5B: return half(detail::binary, detail::rounded<half::round_style>(arg.data_-197, 1, 1));
 			}
-		}
 		return half(detail::binary, detail::area<half::round_style,true>(arg.data_));
 	#endif
 	}
