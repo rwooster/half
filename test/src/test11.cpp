@@ -15,7 +15,7 @@
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //#define HALF_ENABLE_F16C_INTRINSICS 1
-//#define HALF_ARITHMETIC_TYPE double
+//#define HALF_ARITHMETIC_TYPE float
 #define HALF_ROUND_STYLE 1
 #include <half.hpp>
 
@@ -71,9 +71,17 @@ int ilog2(int i)
 	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) results[j] = x[i] op y[j]; \
 	log_ << #op << "\t@ 1/" << (N*N) << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
 
+#define TERNARY_PERFORMANCE_TEST(func, x, y, z, N) { \
+	auto start = std::chrono::high_resolution_clock::now(); \
+	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) for(unsigned int k=0; k<z.size(); k+=N) results[k] = func(x[i], y[j], z[k]); \
+	log_ << #func << "\t@ 1/" << (N*N*N) << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
+
 
 using half_float::half;
 using half_float::half_cast;
+#if HALF_ENABLE_CPP11_USER_LITERALS
+	using namespace half_float::literal;
+#endif
 
 half b2h(std::uint16_t bits)
 {
@@ -465,7 +473,7 @@ public:
 			else
 				one2inf.push_back(b2h(u));
 		}
-		std::vector<half> xs(finite), ys(finite), results(finite.size());
+		std::vector<half> xs(finite), ys(finite), zs(finite), results(finite.size());
 		std::default_random_engine g;
 		std::shuffle(finite.begin(), finite.end(), g);
 		std::shuffle(positive.begin(), positive.end(), g);
@@ -474,11 +482,17 @@ public:
 		std::shuffle(neg2inf.begin(), neg2inf.end(), g);
 		std::shuffle(xs.begin(), xs.end(), g);
 		std::shuffle(ys.begin(), ys.end(), g);
+		std::shuffle(zs.begin(), zs.end(), g);
 /*
 		OPERATOR_PERFORMANCE_TEST(+, xs, ys, 4);
 		OPERATOR_PERFORMANCE_TEST(-, xs, ys, 4);
 		OPERATOR_PERFORMANCE_TEST(*, xs, ys, 4);
 		OPERATOR_PERFORMANCE_TEST(/, xs, ys, 4);
+
+		BINARY_PERFORMANCE_TEST(fdim, xs, ys, 8);
+		BINARY_PERFORMANCE_TEST(fmod, xs, ys, 8);
+		BINARY_PERFORMANCE_TEST(remainder, xs, ys, 8);
+		TERNARY_PERFORMANCE_TEST(fma, xs, ys, zs, 64);
 
 		UNARY_PERFORMANCE_TEST(exp, finite, 1000);
 		UNARY_PERFORMANCE_TEST(exp2, finite, 1000);
@@ -510,6 +524,8 @@ public:
 
 		UNARY_PERFORMANCE_TEST(erf, finite, 1000);
 		UNARY_PERFORMANCE_TEST(erfc, finite, 1000);
+		UNARY_PERFORMANCE_TEST(lgamma, finite, 1000);
+		UNARY_PERFORMANCE_TEST(tgamma, finite, 1000);
 */
 	}
 
@@ -558,7 +574,7 @@ private:
 
 	template<typename F> bool unary_test(const std::string &name, F &&test)
 	{
-		unsigned int count = 0;
+		unsigned int count = 0, failed = 0;
 		log_ << "testing " << name << ":\n";
 		for(auto iterB=halfs_.begin(); iterB!=halfs_.end(); ++iterB)
 		{
@@ -572,9 +588,15 @@ private:
 				++count;
 			}
 			else
+			{
+				failed += iterB->second.size() - passed;
 				log_ << (iterB->second.size()-passed) << " of " << iterB->second.size() << " FAILED\n";
+			}
 		}
-		log_ << '\n';
+		if(failed)
+			log_ << failed << " FAILED\n\n";
+		else
+			log_ << '\n';
 		++tests_;
 		if(count == halfs_.size())
 			return true;
@@ -587,12 +609,14 @@ private:
 		unsigned long tests = 0, count = 0, step = fast_ ? 64 : 1;
 		auto rand = std::bind(std::uniform_int_distribution<std::uint16_t>(0, step-1), std::default_random_engine());
 		std::set<std::string> failed_tests;
-		log_ << "testing " << name << ": ";
+		log_ << "testing " << name << (fast_ ? ": " : ":\n");
 		for(auto iterB1=halfs_.begin(); iterB1!=halfs_.end(); ++iterB1)
 		{
 			unsigned int end1 = (iterB1->first.find("NaN")==std::string::npos) ? iterB1->second.size() : 1;
 			for(auto iterB2=halfs_.begin(); iterB2!=halfs_.end(); ++iterB2)
 			{
+				if(!fast_)
+					std::cout << iterB1->first << " x " << iterB2->first;
 				bool failed = false;
 				unsigned int end2 = (iterB2->first.find("NaN")==std::string::npos) ? iterB2->second.size() : 1;
 				for(unsigned int i=0; i<end1; i+=step)
@@ -612,7 +636,7 @@ private:
 					}
 				}
 				if(!fast_)
-					std::cout << iterB1->first << " x " << iterB2->first << "done\n";
+					std::cout << " done\n";
 				if(failed)
 					failed_tests.insert(iterB1->first+" x "+iterB2->first);
 			}
@@ -634,7 +658,7 @@ private:
 
 	template<typename F> bool ternary_test(const std::string &name, F &&test)
 	{
-		unsigned int tests = 0, count = 0, step = fast_ ? 512 : 1;
+		unsigned int tests = 0, count = 0, step = fast_ ? 256 : 1;
 		auto rand = std::bind(std::uniform_int_distribution<std::uint16_t>(0, step-1), std::default_random_engine());
 		std::set<std::string> failed_tests;
 		log_ << "testing " << name << ": ";
@@ -752,6 +776,7 @@ private:
 			{
 				double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
 //				if(std::abs(h2b(a)-h2b(b)) > 1)
+//				if(std::isinf(error/std::abs(b)))
 //				std::cerr << arg << '(' << std::hex << h2b(arg) << ") = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
 				err = std::max(err, error); rel = std::max(rel, error/std::abs(b)); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
 			}
@@ -916,7 +941,6 @@ int main(int argc, char *argv[]) try
 		out << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(8) << std::llrint(std::ldexp(std::atan(std::ldexp(1.0l, -i)), 30)) << ", \n";
 	return 0;
 
-	using namespace half_float::literal;
 	for(std::uint16_t i=0x3C00; i<0x7C00; ++i)
 	{
 		half x = b2h(i), y = half_cast<half,std::round_toward_neg_infinity>(std::erfc(half_cast<double>(x)));
@@ -936,10 +960,17 @@ int main(int argc, char *argv[]) try
 	std::cout << std::hexfloat << std::setprecision(13) << std::tgamma(0.5) << '\n';
 	return 0;
 
-	using namespace half_float::literal;
 	std::cout << std::lgamma(2.5) << '\n';
 	std::cout << lgamma(2.5_h) << '\n';
 	return 0;
+
+	for(std::uint16_t i=0xBC00; i<0xFC00; ++i)
+	{
+		half x = b2h(i), y = half_cast<half, std::round_to_nearest>(std::exp2(half_cast<double>(x)));
+		std::cout << x << " (" << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << i << std::dec << ")\t= " << y << '\n';
+		if(y == 0.0_h)
+			return 0;
+	}
 */
 	std::vector<std::string> args(argv+1, argv+argc);
 	std::unique_ptr<std::ostream> file;

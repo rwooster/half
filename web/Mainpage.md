@@ -124,8 +124,8 @@ From version 2.0 onward the library is implemented without employing the underly
 
 As to accuracy, many of the operators and functions provided by this library are exact to rounding for all [rounding modes](\ref HALF_ROUND_STYLE), i.e. the error to the exact result is less than 0.5 ulp (unit in the last place) for rounding to nearest and less than 1 ulp for all other rounding modes. This holds for all the operations required by the IEEE 754 standard and more. Some functions might exhibit a deviation from the correctly rounded result by 1 ulp for a select few input values and specific rounding modes. Specifically,
 
-- The following functions are correct to rounding for all rounding modes: [arithmetic operators](\ref arithmetics), fdim(), fma(), [sqrt()](\ref half_float::sqrt), cbrt(), hypot(), exp(), [exp2()](\ref half_float::exp2), log(), log10(), [log2()](\ref half_float::log2), asin(), acos(), sinh(), cosh(), tanh(), acosh(), atanh(), ldexp(), scalbn(), scalbln(), [rounding functions](\ref rounding).
-- The following functions are correct to rounding when rounding to nearest and may be 1 ulp off the correctly rounded result for any other rounding mode: [sincos()](\ref half_float::sincos), sin(), cos(), tan(), atan(), asinh().
+- The following functions are correct to rounding for all rounding modes: [arithmetic operators](\ref arithmetics), fdim(), fma(), [sqrt()](\ref half_float::sqrt), cbrt(), hypot(), exp(), [exp2()](\ref half_float::exp2), log(), log10(), [log2()](\ref half_float::log2), asin(), acos(), sinh(), cosh(), tanh(), asinh(), acosh(), atanh(), ldexp(), scalbn(), scalbln(), [rounding functions](\ref rounding).
+- The following functions are correct to rounding when rounding to nearest and may be 1 ulp off the correctly rounded result for any other rounding mode: [sincos()](\ref half_float::sincos), sin(), cos(), tan(), atan().
 - The following functions may be 1 ulp off the correctly rounded result for all rounding modes: pow(), expm1(), log1p(), [atan2()](\ref half_float::atan2), [erf()](\ref half_float::erf), erfc().
 - All other functions are always exact and independent from the current rounding mode.
 

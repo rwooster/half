@@ -3351,8 +3351,7 @@ namespace half_float
 	}
 
 	/// Hyperbolic area sine.
-	/// This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result for any other rounding mode in ~0.05% of inputs.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return area sine value of \a arg
 	inline half asinh(half arg)
@@ -3363,6 +3362,16 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF;
 		if(!abs || abs >= 0x7C00)
 			return arg;
+		if(abs <= 0x2900)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_-1, 1, 1));
+		if(half::round_style != std::round_to_nearest)
+		{
+			switch(abs)
+			{
+			case 0x32D4: return half(detail::binary, detail::rounded<half::round_style>(arg.data_-13, 1, 1));
+			case 0x3B5B: return half(detail::binary, detail::rounded<half::round_style>(arg.data_-197, 1, 1));
+			}
+		}
 		return half(detail::binary, detail::area<half::round_style,true>(arg.data_));
 	#endif
 	}
