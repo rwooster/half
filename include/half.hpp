@@ -3099,8 +3099,7 @@ namespace half_float
 	}
 
 	/// Sine function.
-	/// This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result in ~5% of inputs for any other rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return sine value of \a arg
 	inline half sin(half arg)
@@ -3113,6 +3112,17 @@ namespace half_float
 			return half(detail::binary, 0x7FFF);
 		if(!abs)
 			return arg;
+		if(abs < 0x2900)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_-1, 1, 1));
+		if(half::round_style != std::round_to_nearest)
+		{
+			switch(abs)
+			{
+			case 0x48B7: return half(detail::binary, detail::rounded<half::round_style>((~arg.data_&0x8000)|0x1D07, 1, 1));
+			case 0x6A64: return half(detail::binary, detail::rounded<half::round_style>((~arg.data_&0x8000)|0x3BFE, 1, 1));
+			case 0x6D8C: return half(detail::binary, detail::rounded<half::round_style>((arg.data_&0x8000)|0x0FE6, 1, 1));
+			}
+		}
 		std::pair<detail::uint32,detail::uint32> sc = detail::sincos(detail::angle_arg(abs, k), 28);
 		detail::uint32 sign = -static_cast<detail::uint32>(((k>>1)&1)^(arg.data_>>15));
 		return half(detail::binary, detail::fixed2half<half::round_style,30,true,true>((((k&1) ? sc.second : sc.first)^sign) - sign));
