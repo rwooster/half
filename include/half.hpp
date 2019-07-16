@@ -2578,12 +2578,16 @@ namespace half_float
 	/// \return \a x - \a y or 0 if difference negative
 	inline half fdim(half x, half y)
 	{
+	#if defined(HALF_ARITHMETIC_TYPE) && HALF_ENABLE_CPP11_CMATH
+		return half(detail::binary, detail::float2half<half::round_style>(std::fdim(detail::half2float<detail::internal_t>(x.data_), detail::half2float<detail::internal_t>(y.data_))));
+	#else
 		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
 		if(absx > 0x7C00)
 			return x;
 		if(absy > 0x7C00)
 			return y;
 		return (((absx==x.data_) ? absx : -absx)<=((absy==y.data_) ? absy : -absy)) ? half(detail::binary, 0) : (x-y);
+	#endif
 	}
 
 	/// Get NaN value.
@@ -2707,9 +2711,8 @@ namespace half_float
 		}
 		else
 			m -= (exp<31) ? (0x80000000>>exp) : 1;
-		if(!m)
-			return half(detail::binary, static_cast<unsigned>(half::round_style==std::round_toward_neg_infinity)<<15);
-		for(exp+=14; m<0x80000000 && exp>0; m<<=1,--exp) ;
+		assert(m);
+		for(exp+=14; m<0x80000000 && exp; m<<=1,--exp) ;
 		if(exp > 29)
 			return half(detail::binary, detail::overflow<half::round_style>());
 		return half(detail::binary, detail::rounded<half::round_style>(value|(exp<<10)+(m>>21), (m>>20)&1, (m&0xFFFFF)!=0));
@@ -2805,7 +2808,7 @@ namespace half_float
 			else
 			{
 				m += 0x40000000 >> exp;
-				int i = m >= 0x80000000;
+				int i = m >> 31;
 				m >>= i;
 				exp += i;
 			}
@@ -3277,8 +3280,7 @@ namespace half_float
 	/// \{
 
 	/// Hyperbolic sine.
-	/// This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result in ~15% of inputs for any other rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return hyperbolic sine value of \a arg
 	inline half sinh(half arg)
@@ -3289,7 +3291,9 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF, exp;
 		if(!abs || abs >= 0x7C00)
 			return arg;
-		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, (half::round_style==std::round_to_nearest) ? 29 : 32);
+		if(abs <= 0x2900)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_, 0, 1));
+		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, (half::round_style==std::round_to_nearest) ? 29 : 27);
 		detail::uint32 m = mm.first - mm.second;
 		for(exp+=13; m<0x80000000 && exp; m<<=1,--exp) ;
 		unsigned int value = arg.data_ & 0x8000;
