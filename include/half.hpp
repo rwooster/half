@@ -462,7 +462,7 @@ namespace half_float
 		#if HALF_TWOS_COMPLEMENT_INT
 			return static_cast<int32>(arg) >> i;
 		#else
-			return static_cast<int32>(arg) / (static_cast<int32>(1)<<i);
+			return static_cast<int32>(arg)/(static_cast<int32>(1)<<i) - ((arg>>(std::numeric_limits<uint32>::digits-1))&1);
 		#endif
 		}
 
@@ -1487,7 +1487,8 @@ namespace half_float
 
 		struct q31
 		{
-			q31(uint32 mant, int e) : m(mant), exp(e) {}
+			HALF_CONSTEXPR q31(uint32 mant, int e) : m(mant), exp(e) {}
+
 			q31(unsigned int abs) : exp(-15)
 			{
 				for(; abs<0x400; abs<<=1,--exp) ;
@@ -1495,43 +1496,43 @@ namespace half_float
 				exp += (abs>>10);
 			}
 
+			friend q31 operator+(q31 a, q31 b)
+			{
+				if(b.exp > a.exp)
+					std::swap(a, b);
+				int d = a.exp - b.exp;
+				uint32 m = a.m + ((d<31) ? ((b.m>>d)|((b.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
+				int i = (m&0xFFFFFFFF) < a.m;
+				return q31((m>>i)|(m&i)|0x80000000, a.exp+i);
+			}
+
+			friend q31 operator-(q31 a, q31 b)
+			{
+				int d = a.exp - b.exp, exp = a.exp;
+				uint32 m = a.m - ((d<32) ? (b.m>>d) : 0);
+				if(!m)
+					return q31(0, -32);
+				for(; m<0x80000000; m<<=1, --exp);
+				return q31(m, exp);
+			}
+
+			friend q31 operator*(q31 a, q31 b)
+			{
+				uint32 m = multiply64(a.m, b.m);
+				int i = m >> 31;
+				return q31(m<<(1-i), a.exp + b.exp + i);
+			}
+
+			friend q31 operator/(q31 a, q31 b)
+			{
+				int i = a.m >= b.m, s;
+				uint32 m = divide64(a.m>>i, b.m, s);
+				return q31(m, a.exp - b.exp + i - 1);
+			}
+
 			uint32 m;
 			int exp;
 		};
-
-		inline q31 operator+(q31 a, q31 b)
-		{
-			if(b.exp > a.exp)
-				std::swap(a, b);
-			int d = a.exp - b.exp;
-			uint32 m = a.m + ((d<31) ? ((b.m>>d)|((b.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
-			int i = (m&0xFFFFFFFF) < a.m;
-			return q31((m>>i)|(m&i)|0x80000000, a.exp+i);
-		}
-
-		inline q31 operator-(q31 a, q31 b)
-		{
-			int d = a.exp - b.exp, exp = a.exp;
-			uint32 m = a.m - ((d<32) ? (b.m>>d) : 0);
-			if(!m)
-				return q31(0, -32);
-			for(; m<0x80000000; m<<=1,--exp) ;
-			return q31(m, exp);
-		}
-
-		inline q31 operator*(q31 a, q31 b)
-		{
-			uint32 m = multiply64(a.m, b.m);
-			int i = m >> 31;
-			return q31(m<<(1-i), a.exp + b.exp + i);
-		}
-
-		inline q31 operator/(q31 a, q31 b)
-		{
-			int i = a.m >= b.m, s;
-			uint32 m = divide64(a.m>>i, b.m, s);
-			return q31(m, a.exp - b.exp + i - 1);
-		}
 
 		/// Error function and postprocessing.
 		/// This computes the value directly in Q1.31 using the approximations given 
@@ -1543,50 +1544,11 @@ namespace half_float
 		template<std::float_round_style R,bool C> unsigned int erf(unsigned int arg)
 		{
 			unsigned int abs = arg & 0x7FFF, sign = arg & 0x8000;
-/*			if(0)//!C && abs < 0x2800)
-			{
-				q31 x(abs), x2 = x * x, ax2 = q31(0x96872B02, -3) * x2;
-				assert(x.exp < 0);
-				assert(x2.exp < 0);
-				assert(ax2.exp < 0);
-				q31 p = x2 * q31(0xB8AA3B29, 0) * (q31(0xA2F9836E, 0)+ax2) / (q31(0x80000000, 0)+ax2);
-				assert(p.exp < 0);
-				q31 a = q31(0x80000000, 0) / q31(exp2((p.exp>-32) ? (p.m>>-p.exp) : 0), 0);
-				if(!a.exp)
-					return arg;
-//					return underflow<R>(sign);
-				assert(a.exp == -1);
-				int exp = 0;
-				uint32 r = 0x40000000 - (a.m>>1-a.exp);
-				for(; r<0x40000000; r<<=1, --exp);
-				uint32 m = sqrt<30>(r, exp);
-				return (exp<-25) ? underflow<R>() : fixed2half<R,15,false,false>(m, exp+14, sign, r!=0);
-			}
-*/			q31 x(abs), x2 = x * x * q31(0xB8AA3B29, 0), t = q31(0x80000000, 0) / (q31(0x80000000, 0)+q31(0xA7BA054A, -2)*x), t2 = t * t;
+			q31 x(abs), x2 = x * x * q31(0xB8AA3B29, 0), t = q31(0x80000000, 0) / (q31(0x80000000, 0)+q31(0xA7BA054A, -2)*x), t2 = t * t;
 			q31 e = ((q31(0x87DC2213, 0)*t2+q31(0xB5F0E2AE, 0))*t2+q31(0x82790637, -2)-(q31(0xBA00E2B8, 0)*t2+q31(0x91A98E62, -2))*t) * t /
 					((x2.exp<0) ? q31(exp2((x2.exp>-32) ? (x2.m>>-x2.exp) : 0, 30), 0) : q31(exp2((x2.m<<x2.exp)&0x7FFFFFFF, 22), x2.m>>(31-x2.exp)));
 			return (!C || sign) ? fixed2half<R, 31, false, true>(0x80000000-(e.m>>(C-e.exp)), 14+C, sign&(C-1U)) :
 					(e.exp<-25) ? underflow<R>() : fixed2half<R,30,false,false>(e.m>>1, e.exp+14, 0, e.m&1);
-		}
-
-		/// Error function and postprocessing.
-		/// This computes the value directly in floating point using the approximations given 
-		/// [here](https://en.wikipedia.org/wiki/Error_function#Approximation_with_elementary_functions).
-		/// \tparam R rounding mode to use
-		/// \tparam C `true` for comlementary error function, `false` else
-		/// \param arg half-precision function argument
-		/// \return approximated value of error function in half-precision
-		template<std::float_round_style R,bool C,typename T> unsigned int erf(unsigned int arg)
-		{
-			unsigned int abs = arg & 0x7FFF, sign = arg & 0x8000;
-			if(!C && abs < 0x2800)
-			{
-				T x = half2float<T>(abs), x2 = x * x, ax2 = 0.147 * x2;
-				return float2half<R>(std::sqrt(T(1)-std::exp(-x2*(T(1.2732395447351626861510701069801)+ax2)/(T(1)+ax2)))) | sign;
-			}
-			T x = half2float<T>(abs), t = T(1) / (T(1)+T(0.3275911)*x), t2 = t * t, t3 = t2 * t, t4 = t3 * t, t5 = t4 * t;
-			T a = (T(0.254829592)*t-T(0.284496736)*t2+T(1.421413741)*t3-T(1.453152027)*t4+T(1.061405429)*t5) * std::exp(-x*x);
-			return C ? float2half<R>(sign ? (T(2)-a) : a) : (float2half<R>(T(1)-a)|sign);
 		}
 
 		/// Logarithm of gamma function.
@@ -2654,6 +2616,8 @@ namespace half_float
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00&((arg.data_>>15)-1U)) : arg;
 		if(!abs)
 			return half(detail::binary, 0x3C00);
+		if(arg.data_ >= 0xCC80)
+			return half(detail::binary, detail::underflow<half::round_style>());
 		detail::uint32 m = detail::multiply64(static_cast<detail::uint32>((abs&0x3FF)+((abs>0x3FF)<<10))<<21, 0xB8AA3B29);
 		int e = (abs>>10) + (abs<=0x3FF), exp;
 		if(e < 14)
@@ -2684,6 +2648,8 @@ namespace half_float
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00&((arg.data_>>15)-1U)) : arg;
 		if(!abs)
 			return half(detail::binary, 0x3C00);
+		if(arg.data_ >= 0xCE40)
+			return half(detail::binary, detail::underflow<half::round_style>());
 		detail::uint32 m;
 		int e = (abs>>10) + (abs<=0x3FF), exp = (abs&0x3FF) + ((abs>0x3FF)<<10);
 		if(e < 25)
@@ -2701,8 +2667,8 @@ namespace half_float
 	}
 
 	/// Exponential minus one.
-	/// This function may be 1 ulp off the correctly rounded result in <0.05% of inputs for `std::round_to_nearest`, 
-	/// in <0.5% of inputs for `std::round_toward_neg_infinity` and in ~15% of inputs for any other rounding mode.
+	/// This function may be 1 ulp off the correctly rounded result in <0.05% of inputs for `std::round_to_nearest` 
+	/// and in <1% of inputs for any other rounding mode.
 	/// \param arg function argument
 	/// \return e raised to \a arg and subtracted by 1
 	inline half expm1(half arg)
@@ -2713,6 +2679,8 @@ namespace half_float
 		unsigned int abs = arg.data_ & 0x7FFF, value = arg.data_ & 0x8000;
 		if(abs >= 0x7C00 || !abs)
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00+(value>>1)) : arg;
+		if(arg.data_ >= 0xC880)
+			return half(detail::binary, detail::rounded<half::round_style>(0xBBFF, 1, 1));
 		detail::uint32 m = detail::multiply64(static_cast<detail::uint32>((abs&0x3FF)+((abs>0x3FF)<<10))<<21, 0xB8AA3B29);
 		int e = (abs>>10) + (abs<=0x3FF), exp;
 		if(e < 14)
@@ -2734,7 +2702,7 @@ namespace half_float
 				++exp;
 				m = detail::divide64(0x80000000, m, s);
 			}
-			m = 0x80000000 - ((exp<31) ? ((m>>exp)|((m&((static_cast<detail::uint32>(1)<<exp)-1))!=0)|s) : 1);
+			m = 0x80000000 - ((m>>exp)|((m&((static_cast<detail::uint32>(1)<<exp)-1))!=0)|s);
 			exp = 0;
 		}
 		else
@@ -3354,8 +3322,7 @@ namespace half_float
 	}
 
 	/// Hyperbolic tangent.
-	/// This function is exact to rounding for `std::round_to_nearest` and may be 1 ulp off the correctly rounded 
-	/// result in ~30% of inputs for `std::round_toward_zero` and in ~15% of inputs for any other rounding mode.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg function argument
 	/// \return hyperbolic tangent value of \a arg
 	inline half tanh(half arg)
@@ -3366,10 +3333,14 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF, exp;
 		if(!abs || abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, arg.data_-0x4000) : arg;
+		if(abs >= 0x4500)
+			return half(detail::binary, detail::rounded<half::round_style>((arg.data_&0x8000)|0x3BFF, 1, 1));
+		if(half::round_style != std::round_to_nearest && abs == 0x2D3F)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_-3, 0, 1));
 		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 27);
-		detail::uint32 my = mm.first - mm.second, mx = mm.first + mm.second, i = ~(mx&0xFFFFFFFF) >> 31;
+		detail::uint32 my = mm.first - mm.second - (half::round_style!=std::round_to_nearest), mx = mm.first + mm.second, i = (~mx&0xFFFFFFFF) >> 31;
 		for(exp=13; my<0x80000000; my<<=1,--exp) ;
-		mx = (mx>>i) | (mx&i) | 0x80000000;
+		mx = (mx>>i) | 0x80000000;
 		return half(detail::binary, detail::tangent_post<half::round_style>(my, mx, exp-i, arg.data_&0x8000));
 	#endif
 	}

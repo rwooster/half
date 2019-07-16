@@ -191,12 +191,12 @@ input values and specific rounding modes. Specifically,
 
   - The following functions are correct to rounding for all rounding modes: 
     arithmetic operators, 'fdim', 'fma', 'sqrt', 'cbrt', 'hypot', 'exp', 
-    'exp2', 'log', 'log10', 'log2', 'acos', 'cosh', 'acosh', 'atanh', 'ldexp', 
-    'scalbn', 'scalbln', rounding functions.
+    'exp2', 'log', 'log10', 'log2', 'acos', 'cosh', 'tanh', 'acosh', 'atanh', 
+    'ldexp', 'scalbn', 'scalbln', rounding functions.
 
   - The following functions are correct to rounding when rounding to nearest 
     and may be 1 ulp off the correctly rounded result for any other rounding 
-    mode: 'sincos', 'sin', 'cos', 'tan', 'asin', 'atan', 'sinh', 'tanh', 'asinh'.
+    mode: 'sincos', 'sin', 'cos', 'tan', 'asin', 'atan', 'sinh', 'asinh'.
 
   - The following functions may be 1 ulp off the correctly rounded result for 
     all rounding modes: 'pow', 'expm1', 'log1p', 'atan2', 'erf', 'erfc'.
