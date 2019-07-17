@@ -15,7 +15,7 @@
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //#define HALF_ENABLE_F16C_INTRINSICS 1
-//#define HALF_ARITHMETIC_TYPE float
+//#define HALF_ARITHMETIC_TYPE double
 #define HALF_ROUND_STYLE 1
 #include <half.hpp>
 
@@ -59,22 +59,26 @@ int ilog2(int i)
 #define UNARY_PERFORMANCE_TEST(func, x, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
 	for(unsigned int i=0; i<N; ++i) for(unsigned int h=0; h<x.size(); ++h) results[h] = func(x[h]); \
-	log_ << #func << "\tx " << N << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
+	auto tm = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count(); \
+	log_ << #func << "\tx " << N << ":\t" << tm << "\n\n"; if(csv_) *csv_ << tm << '\n'; }
 
 #define BINARY_PERFORMANCE_TEST(func, x, y, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
 	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) results[j] = func(x[i], y[j]); \
-	log_ << #func << "\t@ 1/" << (N*N) << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
+	auto tm = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count(); \
+	log_ << #func << "\t@ 1/" << (N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << tm << '\n'; }
 
 #define OPERATOR_PERFORMANCE_TEST(op, x, y, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
 	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) results[j] = x[i] op y[j]; \
-	log_ << #op << "\t@ 1/" << (N*N) << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
+	auto tm = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count(); \
+	log_ << #op << "\t@ 1/" << (N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << tm << '\n'; }
 
 #define TERNARY_PERFORMANCE_TEST(func, x, y, z, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
 	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) for(unsigned int k=0; k<z.size(); k+=N) results[k] = func(x[i], y[j], z[k]); \
-	log_ << #func << "\t@ 1/" << (N*N*N) << ":\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count() << "\n\n"; }
+	auto tm = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count(); \
+	log_ << #func << "\t@ 1/" << (N*N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << tm << '\n'; }
 
 
 using half_float::half;
@@ -110,8 +114,8 @@ template<std::float_round_style R> half select(const std::pair<half,half> &hh)
 class half_test
 {
 public:
-	half_test(std::ostream &log, bool fast, bool rough)
-		: tests_(0), log_(log), fast_(fast), rough_(rough)
+	half_test(std::ostream &log, std::ostream *csv, bool fast, bool rough)
+		: tests_(0), log_(log), csv_(csv), fast_(fast), rough_(rough)
 	{
 		//prepare halfs
 		half_vector batch;
@@ -490,8 +494,6 @@ public:
 		OPERATOR_PERFORMANCE_TEST(/, xs, ys, 4);
 
 		BINARY_PERFORMANCE_TEST(fdim, xs, ys, 8);
-		BINARY_PERFORMANCE_TEST(fmod, xs, ys, 8);
-		BINARY_PERFORMANCE_TEST(remainder, xs, ys, 8);
 		TERNARY_PERFORMANCE_TEST(fma, xs, ys, zs, 64);
 
 		UNARY_PERFORMANCE_TEST(exp, finite, 1000);
@@ -862,6 +864,7 @@ private:
 	unsigned int tests_;
 	std::vector<std::string> failed_;
 	std::ostream &log_;
+	std::ostream *csv_;
 	bool fast_;
 	bool rough_;
 };
@@ -973,7 +976,7 @@ int main(int argc, char *argv[]) try
 	}
 */
 	std::vector<std::string> args(argv+1, argv+argc);
-	std::unique_ptr<std::ostream> file;
+	std::unique_ptr<std::ostream> file, csv;
 	bool fast = false, rough = false;
 	for(auto &&arg : args)
 	{
@@ -981,10 +984,12 @@ int main(int argc, char *argv[]) try
 			fast = true;
 		else if(arg == "-rough")
 			rough = true;
+		else if(arg.length() > 4 && arg.substr(arg.length()-4) == ".csv")
+			csv.reset(new std::ofstream(arg));
 		else
 			file.reset(new std::ofstream(arg));
 	}
-	half_test test(file ? *file : std::cout, fast, rough);
+	half_test test(file ? *file : std::cout, csv.get(), fast, rough);
 
 	test.performance_test();
 

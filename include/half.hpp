@@ -516,44 +516,80 @@ namespace half_float
 		{
 		#if HALF_ENABLE_F16C_INTRINSICS
 			return _mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(value),
-				(R==std::round_to_nearest) ? _MM_FROUND_TO_NEAREST_INT) :
-				(R==std::round_toward_zero) ? _MM_FROUND_TO_ZERO) :
-				(R==std::round_toward_infinity) ? _MM_FROUND_TO_POS_INF) :
-				(R==std::round_toward_neg_infinity) ? _MM_FROUND_TO_NEG_INF) :
+				(R==std::round_to_nearest) ? _MM_FROUND_TO_NEAREST_INT :
+				(R==std::round_toward_zero) ? _MM_FROUND_TO_ZERO :
+				(R==std::round_toward_infinity) ? _MM_FROUND_TO_POS_INF :
+				(R==std::round_toward_neg_infinity) ? _MM_FROUND_TO_NEG_INF :
 				_MM_FROUND_CUR_DIRECTION));
 		#else
 			typedef bits<float>::type uint32;
 			uint32 bits;
 			std::memcpy(&bits, &value, sizeof(float));
-/*			unsigned int hbits = (bits>>16) & 0x8000;
+		#if 1
+			unsigned int sign = (bits>>16) & 0x8000;
 			bits &= 0x7FFFFFFF;
-			int exp = bits >> 23;
-			if(exp == 255)
-				return hbits | 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0x7FFFFF)!=0));
-			if(exp > 142)
-				return overflow<R>(hbits);
-			int g, s;
-			if(exp > 112)
+			if(bits >= 0x7F800000)
+				return sign | 0x7C00 | (0x400-((bits&0x7FFFFF)!=0));
+			if(bits >= 0x47800000)
+				return overflow<R>(sign);
+			if(bits >= 0x38800000)
+				return rounded<R>(sign|(((bits>>23)-112)<<10)|((bits>>13)&0x3FF), (bits>>12)&1, (bits&0xFFF)!=0);
+			if(bits >= 0x33000000)
 			{
-				g = (bits>>12) & 1;
-				s = (bits&0xFFF) != 0;
-				hbits |= ((exp-112)<<10) | ((bits>>13)&0x3FF);
-			}
-			else if(exp > 101)
-			{
-				int i = 125 - exp;
+				int i = 125 - (bits>>23);
 				bits = (bits&0x7FFFFF) | 0x800000;
-				g = (bits>>i) & 1;
-				s = (bits&((static_cast<uint32>(1)<<i)-1)) != 0;
-				hbits |= bits >> (i+1);
+				return rounded<R>(sign|(bits>>(i+1)), (bits>>i)&1, (bits&((static_cast<uint32>(1)<<i)-1))!=0);
 			}
-			else
-			{
-				g = 0;
-				s = bits != 0;
-			}
-			return rounded<R>(hbits, g, s);
-*/			static const uint16 base_table[512] = {
+			return rounded<R>(sign, 0, bits!=0);
+		#elif 0
+			static const uint16 base_table[512] = {
+				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
+				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
+				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
+				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
+				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
+				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
+				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001, 0x0002, 0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080, 0x0100, 
+				0x0200, 0x0400, 0x0800, 0x0C00, 0x1000, 0x1400, 0x1800, 0x1C00, 0x2000, 0x2400, 0x2800, 0x2C00, 0x3000, 0x3400, 0x3800, 0x3C00, 
+				0x4000, 0x4400, 0x4800, 0x4C00, 0x5000, 0x5400, 0x5800, 0x5C00, 0x6000, 0x6400, 0x6800, 0x6C00, 0x7000, 0x7400, 0x7800, 0x7BFF, 
+				0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 
+				0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 
+				0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 
+				0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 
+				0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 
+				0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 
+				0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7BFF, 0x7C00, 
+				0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 
+				0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 
+				0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 
+				0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 
+				0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 
+				0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 
+				0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8001, 0x8002, 0x8004, 0x8008, 0x8010, 0x8020, 0x8040, 0x8080, 0x8100, 
+				0x8200, 0x8400, 0x8800, 0x8C00, 0x9000, 0x9400, 0x9800, 0x9C00, 0xA000, 0xA400, 0xA800, 0xAC00, 0xB000, 0xB400, 0xB800, 0xBC00, 
+				0xC000, 0xC400, 0xC800, 0xCC00, 0xD000, 0xD400, 0xD800, 0xDC00, 0xE000, 0xE400, 0xE800, 0xEC00, 0xF000, 0xF400, 0xF800, 0xFBFF, 
+				0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 
+				0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 
+				0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 
+				0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 
+				0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 
+				0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 
+				0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFBFF, 0xFC00 };
+			static const unsigned char shift_table[256] = {
+				24, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 
+				25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 
+				25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 
+				25, 25, 25, 25, 25, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 
+				13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
+				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
+				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 
+				24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 13 };
+			int sexp = bits >> 23, exp = sexp & 0xFF, i = shift_table[exp];
+			bits &= 0x7FFFFF;
+			uint32 m = (bits|((exp!=0)<<23)) & -static_cast<uint32>(exp!=0xFF);
+			return rounded<R>(base_table[sexp]+(bits>>i), (m>>(i-1))&1, (((static_cast<uint32>(1)<<(i-1))-1)&m)!=0);
+		#else
+			static const uint16 base_table[512] = {
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
@@ -612,6 +648,7 @@ namespace half_float
 				(R==std::round_toward_infinity) ? (((((bits&((static_cast<uint32>(1)<<i)-1))!=0)|((exp<=102)&(exp!=0)))&(hbits<0x7C00))-((hbits==0xFC00)&(exp!=511))) :
 				(R==std::round_toward_neg_infinity) ? (((((bits&((static_cast<uint32>(1)<<i)-1))!=0)|((exp<=358)&(exp!=256)))&(hbits<0xFC00)&(hbits>>15))-((hbits==0x7C00)&(exp!=255))) : 0);
 		#endif
+		#endif
 		}
 
 		/// Convert IEEE double-precision to half-precision.
@@ -623,40 +660,26 @@ namespace half_float
 		#if HALF_ENABLE_F16C_INTRINSICS
 			if(R == std::round_indeterminate)
 				return _mm_cvtsi128_si32(_mm_cvtps_ph(_mm_cvtpd_ps(_mm_set_sd(value)), _MM_FROUND_CUR_DIRECTION));
-		#else
+		#endif
 			typedef bits<double>::type uint64;
 			uint64 bits;
 			std::memcpy(&bits, &value, sizeof(double));
-			uint32 hi = bits >> 32;
-			unsigned int hbits = (hi>>16) & 0x8000;
+			uint32 hi = bits >> 32, lo = bits & 0xFFFFFFFF;
+			unsigned int sign = (hi>>16) & 0x8000;
 			hi &= 0x7FFFFFFF;
-			int exp = hi >> 20;
-			if(exp == 2047)
-				return hbits | 0x7C00 | (0x3FF&-static_cast<unsigned>((bits&0xFFFFFFFFFFFFF)!=0));
-			if(exp > 1038)
-				return overflow<R>(hbits);
-			int g, s = (bits&0xFFFFFFFF) != 0;
-			if(exp > 1008)
+			if(hi >= 0x7FF00000)
+				return sign | 0x7C00 | (0x400-((bits&0xFFFFFFFFFFFFF)!=0));
+			if(hi >= 0x40F00000)
+				return overflow<R>(sign);
+			if(hi >= 0x3F100000)
+				return rounded<R>(sign|(((hi>>20)-1008)<<10)|((hi>>10)&0x3FF), (hi>>9)&1, ((hi&0x1FF)|lo)!=0);
+			if(hi >= 0x3E600000)
 			{
-				g = (hi>>9) & 1;
-				s |= (hi&0x1FF) != 0;
-				hbits |= ((exp-1008)<<10) | ((hi>>10)&0x3FF);
-			}
-			else if(exp > 997)
-			{
-				int i = 1018 - exp;
+				int i = 1018 - (hi>>20);
 				hi = (hi&0xFFFFF) | 0x100000;
-				g = (hi>>i) & 1;
-				s |= (hi&((static_cast<uint32>(1)<<i)-1)) != 0;
-				hbits |= hi >> (i+1);
+				return rounded<R>(sign|(hi>>(i+1)), (hi>>i)&1, ((hi&((static_cast<uint32>(1)<<i)-1))|lo)!=0);
 			}
-			else
-			{
-				g = 0;
-				s |= hi != 0;
-			}
-			return rounded<R>(hbits, g, s);
-		#endif
+			return rounded<R>(sign, 0, (hi|lo)!=0);
 		}
 
 		/// Convert non-IEEE floating point to half-precision.
@@ -754,8 +777,9 @@ namespace half_float
 		#if HALF_ENABLE_F16C_INTRINSICS
 			return _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(value)));
 		#else
+		#if 0
 			typedef bits<float>::type uint32;
-/*			uint32 bits = static_cast<uint32>(value&0x8000) << 16;
+			uint32 bits = static_cast<uint32>(value&0x8000) << 16;
 			int abs = value & 0x7FFF;
 			if(abs)
 			{
@@ -763,7 +787,8 @@ namespace half_float
 				for(; abs<0x400; abs<<=1,bits-=0x800000) ;
 				bits += static_cast<uint32>(abs) << 13;
 			}
-*/			static const uint32 mantissa_table[2048] = {
+		#else
+			static const uint32 mantissa_table[2048] = {
 				0x00000000, 0x33800000, 0x34000000, 0x34400000, 0x34800000, 0x34A00000, 0x34C00000, 0x34E00000, 0x35000000, 0x35100000, 0x35200000, 0x35300000, 0x35400000, 0x35500000, 0x35600000, 0x35700000, 
 				0x35800000, 0x35880000, 0x35900000, 0x35980000, 0x35A00000, 0x35A80000, 0x35B00000, 0x35B80000, 0x35C00000, 0x35C80000, 0x35D00000, 0x35D80000, 0x35E00000, 0x35E80000, 0x35F00000, 0x35F80000, 
 				0x36000000, 0x36040000, 0x36080000, 0x360C0000, 0x36100000, 0x36140000, 0x36180000, 0x361C0000, 0x36200000, 0x36240000, 0x36280000, 0x362C0000, 0x36300000, 0x36340000, 0x36380000, 0x363C0000, 
@@ -901,6 +926,7 @@ namespace half_float
 				0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 
 				0, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024 };
 			uint32 bits = mantissa_table[offset_table[value>>10]+(value&0x3FF)] + exponent_table[value>>10];
+		#endif
 			float out;
 			std::memcpy(&out, &bits, sizeof(float));
 			return out;
@@ -2413,9 +2439,6 @@ namespace half_float
 	/// \return remainder of floating point division.
 	inline half fmod(half x, half y)
 	{
-	#ifdef HALF_ARITHMETIC_TYPE
-		return half(detail::binary, detail::float2half<half::round_style>(std::fmod(detail::half2float<detail::internal_t>(x.data_), detail::half2float<detail::internal_t>(y.data_))));
-	#else
 		unsigned int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, sign = x.data_ & 0x8000;
 		if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
 			return half(detail::binary, 0x7FFF);
@@ -2424,7 +2447,6 @@ namespace half_float
 		if(absx == absy)
 			return half(detail::binary, sign);
 		return half(detail::binary, sign|detail::mod<false,false>(absx, absy));
-	#endif
 	}
 
 	/// Remainder of division.
@@ -2433,9 +2455,6 @@ namespace half_float
 	/// \return remainder of floating point division.
 	inline half remainder(half x, half y)
 	{
-	#if defined(HALF_ARITHMETIC_TYPE) && HALF_ENABLE_CPP11_CMATH
-		return half(detail::binary, detail::float2half<half::round_style>(std::remainder(detail::half2float<detail::internal_t>(x.data_), detail::half2float<detail::internal_t>(y.data_))));
-	#else
 		unsigned int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, sign = x.data_ & 0x8000;
 		if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
 			return half(detail::binary, 0x7FFF);
@@ -2444,7 +2463,6 @@ namespace half_float
 		if(absx == absy)
 			return half(detail::binary, sign);
 		return half(detail::binary, sign^detail::mod<false,true>(absx, absy));
-	#endif
 	}
 
 	/// Remainder of division.
@@ -2454,9 +2472,6 @@ namespace half_float
 	/// \return remainder of floating point division.
 	inline half remquo(half x, half y, int *quo)
 	{
-	#if defined(HALF_ARITHMETIC_TYPE) && HALF_ENABLE_CPP11_CMATH
-		return half(detail::binary, detail::float2half<half::round_style>(std::remquo(detail::half2float<detail::internal_t>(x.data_), detail::half2float<detail::internal_t>(y.data_), quo)));
-	#else
 		unsigned int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF, value = x.data_ & 0x8000;
 		if(absx >= 0x7C00 || absy > 0x7C00 || !absy)
 			return half(detail::binary, 0x7FFF);
@@ -2467,7 +2482,6 @@ namespace half_float
 		if(absx != absy)
 			value ^= detail::mod<true, true>(absx, absy, &q);
 		return *quo = qsign ? -q : q, half(detail::binary, value);
-	#endif
 	}
 
 	/// Fused multiply add.
@@ -2572,15 +2586,11 @@ namespace half_float
 	/// \return \a x - \a y or 0 if difference negative
 	inline half fdim(half x, half y)
 	{
-	#if defined(HALF_ARITHMETIC_TYPE) && HALF_ENABLE_CPP11_CMATH
-		return half(detail::binary, detail::float2half<half::round_style>(std::fdim(detail::half2float<detail::internal_t>(x.data_), detail::half2float<detail::internal_t>(y.data_))));
-	#else
 		if(isnan(x))
 			return x;
 		if(isnan(y))
 			return y;
 		return ((x.data_^(0x8000|(0x8000-(x.data_>>15))))) <= ((y.data_^(0x8000|(0x8000-(y.data_>>15))))) ? half(detail::binary, 0) : (x-y);
-	#endif
 	}
 
 	/// Get NaN value.
