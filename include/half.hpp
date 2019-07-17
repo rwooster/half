@@ -2187,8 +2187,8 @@ namespace half_float
 	/// \retval false else
 	inline bool operator<(half x, half y)
 	{
-		int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
-		return xabs<=0x7C00 && yabs<=0x7C00 && (((xabs==x.data_) ? xabs : -xabs) < ((yabs==y.data_) ? yabs : -yabs));
+		unsigned int signx = x.data_ >> 15, signy = y.data_ >> 15;
+		return ((x.data_^(0x8000|(0x8000-signx)))+signx) < ((y.data_^(0x8000|(0x8000-signy)))+signy) && !isnan(x) && !isnan(y);
 	}
 
 	/// Comparison for greater than.
@@ -2198,8 +2198,8 @@ namespace half_float
 	/// \retval false else
 	inline bool operator>(half x, half y)
 	{
-		int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
-		return xabs<=0x7C00 && yabs<=0x7C00 && (((xabs==x.data_) ? xabs : -xabs) > ((yabs==y.data_) ? yabs : -yabs));
+		unsigned int signx = x.data_ >> 15, signy = y.data_ >> 15;
+		return ((x.data_^(0x8000|(0x8000-signx)))+signx) > ((y.data_^(0x8000|(0x8000-signy)))+signy) && !isnan(x) && !isnan(y);
 	}
 
 	/// Comparison for less equal.
@@ -2209,8 +2209,8 @@ namespace half_float
 	/// \retval false else
 	inline bool operator<=(half x, half y)
 	{
-		int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
-		return xabs<=0x7C00 && yabs<=0x7C00 && (((xabs==x.data_) ? xabs : -xabs) <= ((yabs==y.data_) ? yabs : -yabs));
+		unsigned int signx = x.data_ >> 15, signy = y.data_ >> 15;
+		return ((x.data_^(0x8000|(0x8000-signx)))+signx) <= ((y.data_^(0x8000|(0x8000-signy)))+signy) && !isnan(x) && !isnan(y);
 	}
 
 	/// Comparison for greater equal.
@@ -2220,8 +2220,8 @@ namespace half_float
 	/// \retval false else
 	inline bool operator>=(half x, half y)
 	{
-		int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
-		return xabs<=0x7C00 && yabs<=0x7C00 && (((xabs==x.data_) ? xabs : -xabs) >= ((yabs==y.data_) ? yabs : -yabs));
+		unsigned int signx = x.data_ >> 15, signy = y.data_ >> 15;
+		return ((x.data_^(0x8000|(0x8000-signx)))+signx) >= ((y.data_^(0x8000|(0x8000-signy)))+signy) && !isnan(x) && !isnan(y);
 	}
 
 	/// \}
@@ -2545,14 +2545,11 @@ namespace half_float
 	/// \return maximum of operands
 	inline half fmax(half x, half y)
 	{
-		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
-		if(absx > 0x7C00)
+		if(isnan(x))
 			return y;
-		if(absy > 0x7C00)
+		if(isnan(y))
 			return x;
-		if(!(absx|absy))
-			return x.data_ < y.data_ ? x : y;
-		return (((absx==x.data_) ? absx : -absx) < ((absy==y.data_) ? absy : -absy)) ? y : x;
+		return (x.data_^(0x8000|(0x8000-(x.data_>>15)))) < (y.data_^(0x8000|(0x8000-(y.data_>>15)))) ? y : x;
 	}
 
 	/// Minimum of half expressions.
@@ -2561,14 +2558,11 @@ namespace half_float
 	/// \return minimum of operands
 	inline half fmin(half x, half y)
 	{
-		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
-		if(absx > 0x7C00)
+		if(isnan(x))
 			return y;
-		if(absy > 0x7C00)
+		if(isnan(y))
 			return x;
-		if(!(absx|absy))
-			return x.data_ < y.data_ ? y : x;
-		return (((absx==x.data_) ? absx : -absx) > ((absy==y.data_) ? absy : -absy)) ? y : x;
+		return (x.data_^(0x8000|(0x8000-(x.data_>>15)))) > (y.data_^(0x8000|(0x8000-(y.data_>>15)))) ? y : x;
 	}
 
 	/// Positive difference.
@@ -2581,12 +2575,11 @@ namespace half_float
 	#if defined(HALF_ARITHMETIC_TYPE) && HALF_ENABLE_CPP11_CMATH
 		return half(detail::binary, detail::float2half<half::round_style>(std::fdim(detail::half2float<detail::internal_t>(x.data_), detail::half2float<detail::internal_t>(y.data_))));
 	#else
-		int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
-		if(absx > 0x7C00)
+		if(isnan(x))
 			return x;
-		if(absy > 0x7C00)
+		if(isnan(y))
 			return y;
-		return (((absx==x.data_) ? absx : -absx)<=((absy==y.data_) ? absy : -absy)) ? half(detail::binary, 0) : (x-y);
+		return ((x.data_^(0x8000|(0x8000-(x.data_>>15))))) <= ((y.data_^(0x8000|(0x8000-(y.data_>>15))))) ? half(detail::binary, 0) : (x-y);
 	#endif
 	}
 
