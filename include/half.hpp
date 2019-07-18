@@ -3237,6 +3237,8 @@ namespace half_float
 			return arg;
 		if(abs >= 0x3C00)
 			return half(detail::binary, (abs==0x3C00) ? detail::rounded<half::round_style>(value|0x3E48, 0, 1) : 0x7FFF);
+		if(abs < 0x2900)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_, 0, 1));
 		if(half::round_style != std::round_to_nearest && abs == 0x2B44 || abs == 0x2DC3)
 			return half(detail::binary, detail::rounded<half::round_style>(arg.data_+1, 1, 1));
 		std::pair<detail::uint32,detail::uint32> sc = detail::atan2_args(abs);
@@ -3398,6 +3400,8 @@ namespace half_float
 			return (abs==0x7C00) ? half(detail::binary, arg.data_-0x4000) : arg;
 		if(abs >= 0x4500)
 			return half(detail::binary, detail::rounded<half::round_style>((arg.data_&0x8000)|0x3BFF, 1, 1));
+		if(abs < 0x2700)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_-1, 1, 1));
 		if(half::round_style != std::round_to_nearest && abs == 0x2D3F)
 			return half(detail::binary, detail::rounded<half::round_style>(arg.data_-3, 0, 1));
 		std::pair<detail::uint32,detail::uint32> mm = detail::hyperbolic_args(abs, exp, 27);
@@ -3464,6 +3468,8 @@ namespace half_float
 			return arg;
 		if(abs >= 0x3C00)
 			return half(detail::binary, (abs==0x3C00) ? (arg.data_+0x4000) : 0x7FFF);
+		if(abs < 0x2700)
+			return half(detail::binary, detail::rounded<half::round_style>(arg.data_, 0, 1));
 		detail::uint32 m = static_cast<detail::uint32>((abs&0x3FF)|((abs>0x3FF)<<10)) << ((abs>>10)+(abs<=0x3FF)+6), my = 0x80000000 + m, mx = 0x80000000 - m;
 		for(; mx<0x80000000; mx<<=1,++exp) ;
 		int i = my >= mx, s;
