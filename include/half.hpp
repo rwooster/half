@@ -247,8 +247,8 @@
 #define HUGE_VALH	std::numeric_limits<half_float::half>::infinity()
 
 /// Fast half-precision fma function.
-/// This symbol is only defined if the fma() function generally executes as fast as, or faster than, a separate 
-/// half-precision multiplication followed by an addition, which is the case.
+/// This symbol is defined if the fma() function generally executes as fast as, or faster than, a separate 
+/// half-precision multiplication followed by an addition, which is always the case.
 ///
 /// **See also:** Documentation for [FP_FAST_FMA](http://en.cppreference.com/w/cpp/numeric/math/fma)
 #define FP_FAST_FMAH	1
@@ -298,7 +298,7 @@ namespace half_float
 	/// ~~~~
 	namespace literal
 	{
-		half operator""_h(long double);
+		half operator "" _h(long double);
 	}
 #endif
 
@@ -381,6 +381,7 @@ namespace half_float
 	#endif
 
 	#ifdef HALF_ARITHMETIC_TYPE
+		/// Type to use for arithmetic computations and mathematic functions internally.
 		typedef HALF_ARITHMETIC_TYPE internal_t;
 	#endif
 
@@ -1039,7 +1040,7 @@ namespace half_float
 		/// \{
 
 		/// upper part of 64-bit multiplication.
-		/// \tparam R `true` to round to nearest based on lower 32 bit, `false` for truncation
+		/// \tparam R rounding mode to use
 		/// \param x first factor
 		/// \param y second factor
 		/// \return upper 32 bit of \a x * \a y
@@ -1831,24 +1832,24 @@ namespace half_float
 	/// assumption that the data of a half is just comprised of the 2 bytes of the underlying IEEE representation.
 	class half
 	{
-		friend bool operator==(half, half);
-		friend bool operator!=(half, half);
-		friend bool operator<(half, half);
-		friend bool operator>(half, half);
-		friend bool operator<=(half, half);
-		friend bool operator>=(half, half);
+		friend HALF_CONSTEXPR bool operator==(half, half);
+		friend HALF_CONSTEXPR bool operator!=(half, half);
+		friend HALF_CONSTEXPR bool operator<(half, half);
+		friend HALF_CONSTEXPR bool operator>(half, half);
+		friend HALF_CONSTEXPR bool operator<=(half, half);
+		friend HALF_CONSTEXPR bool operator>=(half, half);
 		friend HALF_CONSTEXPR half operator-(half);
 		friend half operator+(half, half);
 		friend half operator-(half, half);
 		friend half operator*(half, half);
 		friend half operator/(half, half);
-		friend half fabs(half);
+		friend HALF_CONSTEXPR half fabs(half);
 		friend half fmod(half, half);
 		friend half remainder(half, half);
 		friend half remquo(half, half, int*);
 		friend half fma(half, half, half);
-		friend half fmax(half, half);
-		friend half fmin(half, half);
+		friend HALF_CONSTEXPR half fmax(half, half);
+		friend HALF_CONSTEXPR half fmin(half, half);
 		friend half fdim(half, half);
 		friend half nanh(const char*);
 		friend half exp(half);
@@ -1899,20 +1900,20 @@ namespace half_float
 		friend half logb(half);
 		friend half nextafter(half, half);
 		friend half nexttoward(half, long double);
-		friend half copysign(half, half);
-		friend int fpclassify(half);
-		friend bool isfinite(half);
-		friend bool isinf(half);
-		friend bool isnan(half);
-		friend bool isnormal(half);
-		friend bool signbit(half);
+		friend HALF_CONSTEXPR half copysign(half, half);
+		friend HALF_CONSTEXPR int fpclassify(half);
+		friend HALF_CONSTEXPR bool isfinite(half);
+		friend HALF_CONSTEXPR bool isinf(half);
+		friend HALF_CONSTEXPR bool isnan(half);
+		friend HALF_CONSTEXPR bool isnormal(half);
+		friend HALF_CONSTEXPR bool signbit(half);
 		template<typename,typename,std::float_round_style> friend struct detail::half_caster;
 		friend class std::numeric_limits<half>;
 	#if HALF_ENABLE_CPP11_HASH
 		friend struct std::hash<half>;
 	#endif
 	#if HALF_ENABLE_CPP11_USER_LITERALS
-		friend half literal::operator""_h(long double);
+		friend half literal::operator "" _h(long double);
 	#endif
 
 	public:
@@ -2010,18 +2011,19 @@ namespace half_float
 	namespace literal
 	{
 		/// Half literal.
-		/// While this returns an actual half-precision value, half literals can unfortunately not be constant 
-		/// expressions due to rather involved conversions.
+		/// While this returns a properly rounded half-precision value, half literals can unfortunately not be constant 
+		/// expressions due to rather involved conversions. So don't expect this to be a literal literal without involving 
+		/// conversion operations. It is a convenience feature, not a performance optimization.
 		/// \param value literal value
-		/// \return half with given value (if representable)
-		inline half operator""_h(long double value) { return half(detail::binary, detail::float2half<half::round_style>(value)); }
+		/// \return half with of given value (possibly rounded)
+		inline half operator "" _h(long double value) { return half(detail::binary, detail::float2half<half::round_style>(value)); }
 	}
 #endif
 
 	namespace detail
 	{
 		/// Helper class for half casts.
-		/// This class template has to be specialized for all valid cast argument to define an appropriate static 
+		/// This class template has to be specialized for all valid cast arguments to define an appropriate static 
 		/// `cast` member function and a corresponding `type` member denoting its return type.
 		/// \tparam T destination type
 		/// \tparam U source type
@@ -2197,24 +2199,29 @@ namespace half_float
 	/// \param y second operand
 	/// \retval true if operands equal
 	/// \retval false else
-	inline bool operator==(half x, half y) { return (x.data_==y.data_ || !((x.data_|y.data_)&0x7FFF)) && !isnan(x); }
+	inline HALF_CONSTEXPR bool operator==(half x, half y)
+	{
+		return (x.data_==y.data_ || !((x.data_|y.data_)&0x7FFF)) && !isnan(x);
+	}
 
 	/// Comparison for inequality.
 	/// \param x first operand
 	/// \param y second operand
 	/// \retval true if operands not equal
 	/// \retval false else
-	inline bool operator!=(half x, half y) { return (x.data_!=y.data_ && ((x.data_|y.data_)&0x7FFF)) || isnan(x); }
+	inline HALF_CONSTEXPR bool operator!=(half x, half y)
+	{
+		return (x.data_!=y.data_ && ((x.data_|y.data_)&0x7FFF)) || isnan(x);
+	}
 
 	/// Comparison for less than.
 	/// \param x first operand
 	/// \param y second operand
 	/// \retval true if \a x less than \a y
 	/// \retval false else
-	inline bool operator<(half x, half y)
+	inline HALF_CONSTEXPR bool operator<(half x, half y)
 	{
-		unsigned int signx = x.data_ >> 15, signy = y.data_ >> 15;
-		return ((x.data_^(0x8000|(0x8000-signx)))+signx) < ((y.data_^(0x8000|(0x8000-signy)))+signy) && !isnan(x) && !isnan(y);
+		return ((x.data_^(0x8000|(0x8000-(x.data_>>15))))+(x.data_>>15)) < ((y.data_^(0x8000|(0x8000-(y.data_>>15))))+(y.data_>>15)) && !isnan(x) && !isnan(y);
 	}
 
 	/// Comparison for greater than.
@@ -2222,10 +2229,9 @@ namespace half_float
 	/// \param y second operand
 	/// \retval true if \a x greater than \a y
 	/// \retval false else
-	inline bool operator>(half x, half y)
+	inline HALF_CONSTEXPR bool operator>(half x, half y)
 	{
-		unsigned int signx = x.data_ >> 15, signy = y.data_ >> 15;
-		return ((x.data_^(0x8000|(0x8000-signx)))+signx) > ((y.data_^(0x8000|(0x8000-signy)))+signy) && !isnan(x) && !isnan(y);
+		return ((x.data_^(0x8000|(0x8000-(x.data_>>15))))+(x.data_>>15)) > ((y.data_^(0x8000|(0x8000-(y.data_>>15))))+(y.data_>>15)) && !isnan(x) && !isnan(y);
 	}
 
 	/// Comparison for less equal.
@@ -2233,10 +2239,9 @@ namespace half_float
 	/// \param y second operand
 	/// \retval true if \a x less equal \a y
 	/// \retval false else
-	inline bool operator<=(half x, half y)
+	inline HALF_CONSTEXPR bool operator<=(half x, half y)
 	{
-		unsigned int signx = x.data_ >> 15, signy = y.data_ >> 15;
-		return ((x.data_^(0x8000|(0x8000-signx)))+signx) <= ((y.data_^(0x8000|(0x8000-signy)))+signy) && !isnan(x) && !isnan(y);
+		return ((x.data_^(0x8000|(0x8000-(x.data_>>15))))+(x.data_>>15)) <= ((y.data_^(0x8000|(0x8000-(y.data_>>15))))+(y.data_>>15)) && !isnan(x) && !isnan(y);
 	}
 
 	/// Comparison for greater equal.
@@ -2244,10 +2249,9 @@ namespace half_float
 	/// \param y second operand
 	/// \retval true if \a x greater equal \a y
 	/// \retval false else
-	inline bool operator>=(half x, half y)
+	inline HALF_CONSTEXPR bool operator>=(half x, half y)
 	{
-		unsigned int signx = x.data_ >> 15, signy = y.data_ >> 15;
-		return ((x.data_^(0x8000|(0x8000-signx)))+signx) >= ((y.data_^(0x8000|(0x8000-signy)))+signy) && !isnan(x) && !isnan(y);
+		return ((x.data_^(0x8000|(0x8000-(x.data_>>15))))+(x.data_>>15)) >= ((y.data_^(0x8000|(0x8000-(y.data_>>15))))+(y.data_>>15)) && !isnan(x) && !isnan(y);
 	}
 
 	/// \}
@@ -2398,21 +2402,34 @@ namespace half_float
 	/// \{
 
 	/// Output operator.
+	///	This uses the built-in functionality for streaming out floating point numbers.
 	/// \param out output stream to write into
 	/// \param arg half expression to write
 	/// \return reference to output stream
 	template<typename charT,typename traits> std::basic_ostream<charT,traits>& operator<<(std::basic_ostream<charT,traits> &out, half arg)
 	{
+	#ifdef HALF_ARITHMETIC_TYPE
+		return out << half_cast<detail::internal_t>(arg);
+	#else
 		return out << half_cast<float>(arg);
+	#endif
 	}
 
 	/// Input operator.
+	///	This uses the built-in functionality for streaming in floating point numbers, specifically double precision floating 
+	/// point numbers (unless overridden with [HALF_ARITHMETIC_TYPE](\ref HALF_ARITHMETIC_TYPE)). So the input string is first 
+	/// rounded to double precision using the underlying platform's current floating point rounding mode before being rounded 
+	/// to half precision using the library's half precision rounding mode.
 	/// \param in input stream to read from
 	/// \param arg half to read into
 	/// \return reference to input stream
 	template<typename charT,typename traits> std::basic_istream<charT,traits>& operator>>(std::basic_istream<charT,traits> &in, half &arg)
 	{
+	#ifdef HALF_ARITHMETIC_TYPE
+		detail::internal_t f;
+	#else
 		double f;
+	#endif
 		if(in >> f)
 			arg = half_cast<half>(f);
 		return in;
@@ -2426,12 +2443,12 @@ namespace half_float
 	/// Absolute value.
 	/// \param arg operand
 	/// \return absolute value of \a arg
-	inline half fabs(half arg) { return half(detail::binary, arg.data_&0x7FFF); }
+	inline HALF_CONSTEXPR half fabs(half arg) { return half(detail::binary, arg.data_&0x7FFF); }
 
 	/// Absolute value.
 	/// \param arg operand
 	/// \return absolute value of \a arg
-	inline half abs(half arg) { return fabs(arg); }
+	inline HALF_CONSTEXPR half abs(half arg) { return fabs(arg); }
 
 	/// Remainder of division.
 	/// \param x first operand
@@ -2557,26 +2574,18 @@ namespace half_float
 	/// \param x first operand
 	/// \param y second operand
 	/// \return maximum of operands
-	inline half fmax(half x, half y)
+	inline HALF_CONSTEXPR half fmax(half x, half y)
 	{
-		if(isnan(x))
-			return y;
-		if(isnan(y))
-			return x;
-		return (x.data_^(0x8000|(0x8000-(x.data_>>15)))) < (y.data_^(0x8000|(0x8000-(y.data_>>15)))) ? y : x;
+		return (!isnan(y) && (isnan(x) || (x.data_^(0x8000|(0x8000-(x.data_>>15)))) < (y.data_^(0x8000|(0x8000-(y.data_>>15)))))) ? y : x;
 	}
 
 	/// Minimum of half expressions.
 	/// \param x first operand
 	/// \param y second operand
 	/// \return minimum of operands
-	inline half fmin(half x, half y)
+	inline HALF_CONSTEXPR half fmin(half x, half y)
 	{
-		if(isnan(x))
-			return y;
-		if(isnan(y))
-			return x;
-		return (x.data_^(0x8000|(0x8000-(x.data_>>15)))) > (y.data_^(0x8000|(0x8000-(y.data_>>15)))) ? y : x;
+		return (!isnan(y) && (isnan(x) || (x.data_^(0x8000|(0x8000-(x.data_>>15)))) > (y.data_^(0x8000|(0x8000-(y.data_>>15)))))) ? y : x;
 	}
 
 	/// Positive difference.
@@ -2590,7 +2599,7 @@ namespace half_float
 			return x;
 		if(isnan(y))
 			return y;
-		return ((x.data_^(0x8000|(0x8000-(x.data_>>15))))) <= ((y.data_^(0x8000|(0x8000-(y.data_>>15))))) ? half(detail::binary, 0) : (x-y);
+		return (x.data_^(0x8000|(0x8000-(x.data_>>15)))) <= (y.data_^(0x8000|(0x8000-(y.data_>>15)))) ? half(detail::binary, 0) : (x-y);
 	}
 
 	/// Get NaN value.
@@ -3726,6 +3735,7 @@ namespace half_float
 	}
 
 	/// Multiply by power of two.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg number to modify
 	/// \param exp power of two to multiply with
 	/// \return \a arg multplied by 2 raised to \a exp
@@ -3747,12 +3757,14 @@ namespace half_float
 	}
 
 	/// Multiply by power of two.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg number to modify
 	/// \param exp power of two to multiply with
 	/// \return \a arg multplied by 2 raised to \a exp
 	inline half scalbn(half arg, int exp) { return scalbln(arg, exp); }
 
 	/// Multiply by power of two.
+	/// This function is exact to rounding for all rounding modes.
 	/// \param arg number to modify
 	/// \param exp power of two to multiply with
 	/// \return \a arg multplied by 2 raised to \a exp
@@ -3853,7 +3865,7 @@ namespace half_float
 	/// \param x value to change sign for
 	/// \param y value to take sign from
 	/// \return value equal to \a x in magnitude and to \a y in sign
-	inline half copysign(half x, half y) { return half(detail::binary, x.data_^((x.data_^y.data_)&0x8000)); }
+	inline HALF_CONSTEXPR half copysign(half x, half y) { return half(detail::binary, x.data_^((x.data_^y.data_)&0x8000)); }
 
 	/// \}
 	/// \anchor classification
@@ -3867,41 +3879,44 @@ namespace half_float
 	/// \retval FP_INFINITY for positive and negative infinity
 	/// \retval FP_NAN for NaNs
 	/// \retval FP_NORMAL for all other (normal) values
-	inline int fpclassify(half arg)
+	inline HALF_CONSTEXPR int fpclassify(half arg)
 	{
-		unsigned int abs = arg.data_ & 0x7FFF;
-		return !abs ? FP_ZERO : (abs<0x400) ? FP_SUBNORMAL : (abs<0x7C00) ? FP_NORMAL : (abs==0x7C00) ? FP_INFINITE : FP_NAN;
+		return	!(arg.data_&0x7FFF) ? FP_ZERO :
+				((arg.data_&0x7FFF)<0x400) ? FP_SUBNORMAL :
+				((arg.data_&0x7FFF)<0x7C00) ? FP_NORMAL :
+				((arg.data_&0x7FFF)==0x7C00) ? FP_INFINITE :
+				FP_NAN;
 	}
 
 	/// Check if finite number.
 	/// \param arg number to check
 	/// \retval true if neither infinity nor NaN
 	/// \retval false else
-	inline bool isfinite(half arg) { return (arg.data_&0x7C00) != 0x7C00; }
+	inline HALF_CONSTEXPR bool isfinite(half arg) { return (arg.data_&0x7C00) != 0x7C00; }
 
 	/// Check for infinity.
 	/// \param arg number to check
 	/// \retval true for positive or negative infinity
 	/// \retval false else
-	inline bool isinf(half arg) { return (arg.data_&0x7FFF) == 0x7C00; }
+	inline HALF_CONSTEXPR bool isinf(half arg) { return (arg.data_&0x7FFF) == 0x7C00; }
 
 	/// Check for NaN.
 	/// \param arg number to check
 	/// \retval true for NaNs
 	/// \retval false else
-	inline bool isnan(half arg) { return (arg.data_&0x7FFF) > 0x7C00; }
+	inline HALF_CONSTEXPR bool isnan(half arg) { return (arg.data_&0x7FFF) > 0x7C00; }
 
 	/// Check if normal number.
 	/// \param arg number to check
 	/// \retval true if normal number
 	/// \retval false if either subnormal, zero, infinity or NaN
-	inline bool isnormal(half arg) { return ((arg.data_&0x7C00)!=0) & ((arg.data_&0x7C00)!=0x7C00); }
+	inline HALF_CONSTEXPR bool isnormal(half arg) { return ((arg.data_&0x7C00)!=0) & ((arg.data_&0x7C00)!=0x7C00); }
 
 	/// Check sign.
 	/// \param arg number to check
 	/// \retval true for negative number
 	/// \retval false for positive number
-	inline bool signbit(half arg) { return (arg.data_&0x8000) != 0; }
+	inline HALF_CONSTEXPR bool signbit(half arg) { return (arg.data_&0x8000) != 0; }
 
 	/// \}
 	/// \anchor comparison
@@ -3913,42 +3928,42 @@ namespace half_float
 	/// \param y second operand
 	/// \retval true if \a x greater than \a y
 	/// \retval false else
-	inline bool isgreater(half x, half y) { return x > y; }
+	inline HALF_CONSTEXPR bool isgreater(half x, half y) { return x > y; }
 
 	/// Comparison for greater equal.
 	/// \param x first operand
 	/// \param y second operand
 	/// \retval true if \a x greater equal \a y
 	/// \retval false else
-	inline bool isgreaterequal(half x, half y) { return x >= y; }
+	inline HALF_CONSTEXPR bool isgreaterequal(half x, half y) { return x >= y; }
 
 	/// Comparison for less than.
 	/// \param x first operand
 	/// \param y second operand
 	/// \retval true if \a x less than \a y
 	/// \retval false else
-	inline bool isless(half x, half y) { return x < y; }
+	inline HALF_CONSTEXPR bool isless(half x, half y) { return x < y; }
 
 	/// Comparison for less equal.
 	/// \param x first operand
 	/// \param y second operand
 	/// \retval true if \a x less equal \a y
 	/// \retval false else
-	inline bool islessequal(half x, half y) { return x <= y; }
+	inline HALF_CONSTEXPR bool islessequal(half x, half y) { return x <= y; }
 
 	/// Comarison for less or greater.
 	/// \param x first operand
 	/// \param y second operand
 	/// \retval true if either less or greater
 	/// \retval false else
-	inline bool islessgreater(half x, half y) { return x < y || x > y; }
+	inline HALF_CONSTEXPR bool islessgreater(half x, half y) { return x < y || x > y; }
 
 	/// Check if unordered.
 	/// \param x first operand
 	/// \param y second operand
 	/// \retval true if unordered (one or two NaN operands)
 	/// \retval false else
-	inline bool isunordered(half x, half y) { return isnan(x) || isnan(y); }
+	inline HALF_CONSTEXPR bool isunordered(half x, half y) { return isnan(x) || isnan(y); }
 
 	/// \}
 	/// \anchor casting
@@ -3961,7 +3976,7 @@ namespace half_float
 	///
 	/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
 	/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
-	/// error and casting between [half](\ref half_float::half)s is just a no-op.
+	/// error and casting between [half](\ref half_float::half)s returns the argument unmodified.
 	/// \tparam T destination type (half or built-in arithmetic type)
 	/// \tparam U source type (half or built-in arithmetic type)
 	/// \param arg value to cast
@@ -3974,7 +3989,7 @@ namespace half_float
 	///
 	/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
 	/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
-	/// error and casting between [half](\ref half_float::half)s is just a no-op.
+	/// error and casting between [half](\ref half_float::half)s returns the argument unmodified.
 	/// \tparam T destination type (half or built-in arithmetic type)
 	/// \tparam R rounding mode to use.
 	/// \tparam U source type (half or built-in arithmetic type)
