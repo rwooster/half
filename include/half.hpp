@@ -2147,7 +2147,7 @@ namespace std
 		/// Largest finite value.
 		static HALF_CONSTEXPR half_float::half max() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x7BFF); }
 
-		/// Difference between one and next representable value.
+		/// Difference between 1 and next representable value.
 		static HALF_CONSTEXPR half_float::half epsilon() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x1400); }
 
 		/// Maximum rounding error.
@@ -2630,10 +2630,10 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF;
 		if(abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00&((arg.data_>>15)-1U)) : arg;
+		if(abs >= 0x4C80)
+			return half(detail::binary, (arg.data_&0x8000) ? detail::underflow<half::round_style>() : detail::overflow<half::round_style>());
 		if(!abs)
 			return half(detail::binary, 0x3C00);
-		if(arg.data_ >= 0xCC80)
-			return half(detail::binary, detail::underflow<half::round_style>());
 		detail::uint32 m = detail::multiply64(static_cast<detail::uint32>((abs&0x3FF)+((abs>0x3FF)<<10))<<21, 0xB8AA3B29);
 		int e = (abs>>10) + (abs<=0x3FF), exp;
 		if(e < 14)
@@ -2662,23 +2662,13 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF;
 		if(abs >= 0x7C00)
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00&((arg.data_>>15)-1U)) : arg;
+		if(abs >= 0x4E40)
+			return half(detail::binary, (arg.data_&0x8000) ? detail::underflow<half::round_style>() : detail::overflow<half::round_style>());
 		if(!abs)
 			return half(detail::binary, 0x3C00);
-		if(arg.data_ >= 0xCE40)
-			return half(detail::binary, detail::underflow<half::round_style>());
-		detail::uint32 m;
 		int e = (abs>>10) + (abs<=0x3FF), exp = (abs&0x3FF) + ((abs>0x3FF)<<10);
-		if(e < 25)
-		{
-			m = (static_cast<detail::uint32>(exp)<<(6+e)) & 0x7FFFFFFF;
-			exp >>= 25 - e;
-		}
-		else
-		{
-			m = 0;
-			exp <<= e - 25;
-		}
-		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(m, 28), exp, (arg.data_&0x8000)!=0));
+		return half(detail::binary, detail::exp2_post<half::round_style>(detail::exp2(
+			(static_cast<detail::uint32>(exp)<<(6+e))&0x7FFFFFFF, 28), exp>>(25-e), (arg.data_&0x8000)!=0));
 	#endif
 	}
 
@@ -2695,8 +2685,8 @@ namespace half_float
 		unsigned int abs = arg.data_ & 0x7FFF, value = arg.data_ & 0x8000;
 		if(abs >= 0x7C00 || !abs)
 			return (abs==0x7C00) ? half(detail::binary, 0x7C00+(value>>1)) : arg;
-		if(arg.data_ >= 0xC880)
-			return half(detail::binary, detail::rounded<half::round_style>(0xBBFF, 1, 1));
+		if(abs >= 0x4A00)
+			return half(detail::binary, (arg.data_&0x8000) ? detail::rounded<half::round_style>(0xBBFF, 1, 1) : detail::overflow<half::round_style>());
 		detail::uint32 m = detail::multiply64(static_cast<detail::uint32>((abs&0x3FF)+((abs>0x3FF)<<10))<<21, 0xB8AA3B29);
 		int e = (abs>>10) + (abs<=0x3FF), exp;
 		if(e < 14)
@@ -3473,8 +3463,8 @@ namespace half_float
 		detail::uint32 m = static_cast<detail::uint32>((abs&0x3FF)|((abs>0x3FF)<<10)) << ((abs>>10)+(abs<=0x3FF)+6), my = 0x80000000 + m, mx = 0x80000000 - m;
 		for(; mx<0x80000000; mx<<=1,++exp) ;
 		int i = my >= mx, s;
-		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(detail::log2((detail::divide64(my>>i, mx, s)+1)>>1,
-			(half::round_style==std::round_to_nearest) ? 27 : 32)+0x10, 16, exp+i-1, arg.data_&0x8000));
+		return half(detail::binary, detail::log2_post<half::round_style,0xB8AA3B2A>(detail::log2(
+			(detail::divide64(my>>i, mx, s)+1)>>1, 27)+0x10, 16, exp+i-1, arg.data_&0x8000));
 	#endif
 	}
 
