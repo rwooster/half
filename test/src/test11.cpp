@@ -15,7 +15,7 @@
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //#define HALF_ENABLE_F16C_INTRINSICS 1
-//#define HALF_ARITHMETIC_TYPE double
+//#define HALF_ARITHMETIC_TYPE float
 #define HALF_ROUND_STYLE 1
 #include <half.hpp>
 
@@ -99,7 +99,7 @@ std::uint16_t h2b(half h)
 
 bool comp(half a, half b)
 {
-	return (isnan(a) && isnan(b)) || a == b;//h2b(a) == h2b(b);
+	return (isnan(a) && isnan(b)) || h2b(a) == h2b(b);
 }
 
 template<std::float_round_style R> half select(const std::pair<half,half> &hh)
@@ -810,6 +810,7 @@ private:
 				if(!equal)
 				{
 					double error = std::abs(static_cast<double>(a)-static_cast<double>(b));
+//					if(std::abs(h2b(a)-h2b(b)) > 1)
 //					std::cerr << x << ", " << y << " = " << a << '(' << std::hex << h2b(a) << "), " << b << '(' << h2b(b) << ") -> " << error << '\n' << std::dec;
 					err = std::max(err, error); rel = std::max(rel, error/std::abs(b)); bin = std::max(bin, std::abs(h2b(a)-h2b(b)));
 				}
