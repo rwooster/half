@@ -183,30 +183,14 @@ types, like conversions).
 
 As to accuracy, many of the operators and functions provided by this library 
 are exact to rounding for all rounding modes, i.e. the error to the exact 
-result is less than 0.5 ulp (unit in the last place) for rounding to nearest 
-and less than 1 ulp for all other rounding modes. This holds for all the 
-operations required by the IEEE 754 standard and more. Some functions might 
-exhibit a deviation from the correctly rounded result by 1 ulp for a select few 
-input values and specific rounding modes. Specifically,
-
-  - The following functions are correct to rounding for all rounding modes: 
-    arithmetic operators, 'fdim', 'fma', 'sqrt', 'cbrt', 'hypot', 'exp', 
-    'exp2', 'log', 'log10', 'log2', 'sincos', 'sin', 'cos', 'tan', 'asin', 
-    'acos', 'atan', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh', 'ldexp', 
-    'scalbn', 'scalbln', rounding functions.
-
-  - The following functions are correct to rounding when rounding to nearest 
-    and may be 1 ulp off the correctly rounded result for any other rounding 
-    mode: .
-
-  - The following functions may be 1 ulp off the correctly rounded result for 
-    all rounding modes: 'pow', 'expm1', 'log1p', 'atan2', 'erf', 'erfc'.
-
-  - All other functions are always exact and independent from the current 
-    rounding mode.
-
-For more details on the specific accuracy, see the documentation of the 
-individual functions.
+result is at most 0.5 ulp (unit in the last place) for rounding to nearest and 
+less than 1 ulp for all other rounding modes. This holds for all the operations 
+required by the IEEE 754 standard and many more. Specifically the following 
+functions might exhibit a deviation from the correctly rounded result by 1 ulp 
+for a select few input values: 'expm1', 'log1p', 'pow', 'atan2', 'erf', 'erfc', 
+'lgamma', 'tgamma' (for more details see the documentation of the individual 
+functions). All other functions and operators are always exact to rounding or 
+independent of the rounding mode altogether.
 
 The increased IEEE-conformance and cleanliness of this implementation comes 
 with a certain performance cost compared to doing computations and mathematical 

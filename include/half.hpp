@@ -1339,7 +1339,7 @@ namespace half_float
 		/// Get exponentials for hyperbolic computation
 		/// \param abs half-precision floating point value
 		/// \param exp variable to take unbiased exponent of larger result
-		/// \param n number of iterations (at most 32)
+		/// \param n number of BKM iterations (at most 32)
 		/// \return exp(abs) and exp(-\a abs) as Q1.31 with same exponent
 		inline std::pair<uint32,uint32> hyperbolic_args(unsigned int abs, int &exp, unsigned int n = 32)
 		{
@@ -1512,53 +1512,75 @@ namespace half_float
 			return log2_post<R,0xB8AA3B2A>(log2(my>>i, 26+S+G)+(G<<3), 17, ilog+i, arg&(static_cast<unsigned>(S)<<15));
 		}
 
-		struct q31
+		/// Class for 1.31 unsigned floating point computation
+		struct f31
 		{
-			HALF_CONSTEXPR q31(uint32 mant, int e) : m(mant), exp(e) {}
+			/// Constructor.
+			/// \param mant mantissa as 1.31
+			/// \param e exponent
+			HALF_CONSTEXPR f31(uint32 mant, int e) : m(mant), exp(e) {}
 
-			q31(unsigned int abs) : exp(-15)
+			/// Constructor.
+			/// \param abs unsigned half-precision value
+			f31(unsigned int abs) : exp(-15)
 			{
 				for(; abs<0x400; abs<<=1,--exp) ;
 				m = static_cast<uint32>((abs&0x3FF)|0x400) << 21;
 				exp += (abs>>10);
 			}
 
-			friend q31 operator+(q31 a, q31 b)
+			/// Addition operator.
+			/// \param a first operand
+			/// \param b second operand
+			/// \return \a a + \a b
+			friend f31 operator+(f31 a, f31 b)
 			{
 				if(b.exp > a.exp)
 					std::swap(a, b);
 				int d = a.exp - b.exp;
 				uint32 m = a.m + ((d<31) ? ((b.m>>d)|((b.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
 				int i = (m&0xFFFFFFFF) < a.m;
-				return q31((m>>i)|(m&i)|0x80000000, a.exp+i);
+				return f31((m>>i)|(m&i)|0x80000000, a.exp+i);
 			}
 
-			friend q31 operator-(q31 a, q31 b)
+			/// Subtraction operator.
+			/// \param a first operand
+			/// \param b second operand
+			/// \return \a a - \a b
+			friend f31 operator-(f31 a, f31 b)
 			{
 				int d = a.exp - b.exp, exp = a.exp;
-				uint32 m = a.m - ((d<32) ? (b.m>>d) : 0);
+				uint32 m = a.m - ((d<32) ? (b.m>>d) : 1);
 				if(!m)
-					return q31(0, -32);
-				for(; m<0x80000000; m<<=1, --exp);
-				return q31(m, exp);
+					return f31(0, -32);
+				for(; m<0x80000000; m<<=1,--exp) ;
+				return f31(m, exp);
 			}
 
-			friend q31 operator*(q31 a, q31 b)
+			/// Multiplication operator.
+			/// \param a first operand
+			/// \param b second operand
+			/// \return \a a * \a b
+			friend f31 operator*(f31 a, f31 b)
 			{
 				uint32 m = multiply64(a.m, b.m);
 				int i = m >> 31;
-				return q31(m<<(1-i), a.exp + b.exp + i);
+				return f31(m<<(1-i), a.exp + b.exp + i);
 			}
 
-			friend q31 operator/(q31 a, q31 b)
+			/// Division operator.
+			/// \param a first operand
+			/// \param b second operand
+			/// \return \a a / \a b
+			friend f31 operator/(f31 a, f31 b)
 			{
 				int i = a.m >= b.m, s;
 				uint32 m = divide64(a.m>>i, b.m, s);
-				return q31(m, a.exp - b.exp + i - 1);
+				return f31(m, a.exp - b.exp + i - 1);
 			}
 
-			uint32 m;
-			int exp;
+			uint32 m;			///< mantissa as 1.31.
+			int exp;			///< exponent.
 		};
 
 		/// Error function and postprocessing.
@@ -1571,244 +1593,112 @@ namespace half_float
 		template<std::float_round_style R,bool C> unsigned int erf(unsigned int arg)
 		{
 			unsigned int abs = arg & 0x7FFF, sign = arg & 0x8000;
-			q31 x(abs), x2 = x * x * q31(0xB8AA3B29, 0), t = q31(0x80000000, 0) / (q31(0x80000000, 0)+q31(0xA7BA054A, -2)*x), t2 = t * t;
-			q31 e = ((q31(0x87DC2213, 0)*t2+q31(0xB5F0E2AE, 0))*t2+q31(0x82790637, -2)-(q31(0xBA00E2B8, 0)*t2+q31(0x91A98E62, -2))*t) * t /
-					((x2.exp<0) ? q31(exp2((x2.exp>-32) ? (x2.m>>-x2.exp) : 0, 30), 0) : q31(exp2((x2.m<<x2.exp)&0x7FFFFFFF, 22), x2.m>>(31-x2.exp)));
-			return (!C || sign) ? fixed2half<R, 31, false, true>(0x80000000-(e.m>>(C-e.exp)), 14+C, sign&(C-1U)) :
+			f31 x(abs), x2 = x * x * f31(0xB8AA3B29, 0), t = f31(0x80000000, 0) / (f31(0x80000000, 0)+f31(0xA7BA054A, -2)*x), t2 = t * t;
+			f31 e = ((f31(0x87DC2213, 0)*t2+f31(0xB5F0E2AE, 0))*t2+f31(0x82790637, -2)-(f31(0xBA00E2B8, 0)*t2+f31(0x91A98E62, -2))*t) * t /
+					((x2.exp<0) ? f31(exp2((x2.exp>-32) ? (x2.m>>-x2.exp) : 0, 30), 0) : f31(exp2((x2.m<<x2.exp)&0x7FFFFFFF, 22), x2.m>>(31-x2.exp)));
+			return (!C || sign) ? fixed2half<R,31,false,true>(0x80000000-(e.m>>(C-e.exp)), 14+C, sign&(C-1U)) :
 					(e.exp<-25) ? underflow<R>() : fixed2half<R,30,false,false>(e.m>>1, e.exp+14, 0, e.m&1);
 		}
 
 		/// Logarithm of gamma function.
-		/// \param arg function argument
-		/// \return approximated logarithm of gamma function
+		/// \tparam R rounding mode to use
+		/// \tparam L `true` for lograithm of gamma function, `false` for gamma function
+		/// \param arg half-precision floating point value
+		/// \return lgamma/tgamma(\a arg) in half-precision
 		template<std::float_round_style R,bool L> unsigned int gamma(unsigned int arg)
 		{
-			struct q31 { uint32 m; int exp; };
-			static bool psign[] = { false, false, true, false, true, false };
-//			static const q31 p[] = { { 0xA06C99CB, 1 }, { 0xA5AB6C18, 5 }, { 0xD882DA11, 4 }, { 0x8F50FC4A, 1 } };
-//			static const q31 p[] = { { 0xA06C9909, 1 }, { 0xB86A0241, 6 }, { 0xA65AF33F, 6 }, { 0xECD8664B, 3 }, { 0xE2266D04, -3 } };
-			static const q31 p[] = { { 0xA06C9901, 1 }, { 0xE1868CB7, 7 }, { 0x8625E279, 8 }, { 0xA1CE6098, 6 }, { 0xA03E158F, 2 }, { 0xBBE654E2, -7 } };
-			static const q31 g[] = { { 0xC999999A, 1 }, { 0xF6666666, 1 }, { 0x94CCCCCD, 2 } };
-			static const unsigned int N = sizeof(p) / sizeof(p[0]);
-			return 0;
-/*
-			if(arg == 0x4100)
-				std::cout << "test\n";
-
-			if(arg == 0x3800)
-				return rounded<R>(L ? 0x3894 : 0x3F16, !L, 1);
-
-			int abs = arg & 0x7FFF, k;
-			bool complement = (arg<0x3800) || (arg&0x8000);
-			q31 x;
-			if(complement)
+/*			static const double p[] ={ 2.50662827563479526904, 225.525584619175212544, -268.295973841304927459, 80.9030806934622512966, -5.00757863970517583837, 0.0114684895434781459556 };
+			double t = arg + 4.65, s = p[0];
+			for(unsigned int i=0; i<5; ++i)
+				s += p[i+1] / (arg+i);
+			return std::log(s) + (arg-0.5)*std::log(t) - t;
+*/			static const f31 pi(0xC90FDAA2, 1), lbe(0xB8AA3B29, 0);
+			unsigned int abs = arg & 0x7FFF, sign = arg & 0x8000, value = sign;
+			f31 z(abs), x = sign ? (z+f31(0x80000000, 0)) : z, t = x + f31(0x94CCCCCD, 2), s =
+				f31(0xA06C9901, 1) + f31(0xBBE654E2, -7)/(x+f31(0x80000000, 2)) + f31(0xA1CE6098, 6)/(x+f31(0x80000000, 1))
+				+ f31(0xE1868CB7, 7)/x - f31(0x8625E279, 8)/(x+f31(0x80000000, 0)) - f31(0xA03E158F, 2)/(x+f31(0xC0000000, 1));
+			int i = (s.exp>=2) + (s.exp>=4) + (s.exp>=8) + (s.exp>=16);
+			s = f31((static_cast<uint32>(s.exp)<<(31-i))+(log2(s.m>>1, 28)>>i), i) / lbe;
+			if(x.exp != -1 || x.m != 0x80000000)
 			{
-				int exp = (abs>>10) + (abs<=0x3FF);
-				uint32 m = (abs&0x3FF) | ((abs>0x3FF)<<10);
-				if(exp < 15)
+				i = (t.exp>=2) + (t.exp>=4) + (t.exp>=8);
+				f31 l = f31((static_cast<uint32>(t.exp)<<(31-i))+(log2(t.m>>1, 30)>>i), i) / lbe;
+				s = (x.exp<-1) ? (s-(f31(0x80000000, -1)-x)*l) : (s+(x-f31(0x80000000, -1))*l);
+			}
+			s = x.exp ? (s-t) : (t-s);
+			if(sign)
+			{
+				if(z.exp >= 0)
 				{
-					m <<= exp + 6;
-					int i = 1 - (arg>>15);
-					x.m = (0x80000000+(m^-static_cast<uint32>(i))+i) << i;
-					x.exp = -i;
+					value &= (L|((z.m>>(31-z.exp))&1)) - 1;
+					for(z=f31(z.m<<(1+z.exp), -1); z.m<0x80000000; z.m<<=1,--z.exp) ;
+				}
+				if(z.exp == -1)
+					z = f31(0x80000000, 0) - z;
+				if(z.exp < -1)
+				{
+					z = z * pi;
+					z.m = sincos(z.m>>(1-z.exp), 30).first;
+					for(z.exp=1; z.m<0x80000000; z.m<<=1,--z.exp) ;
+				}
+				else
+					z = f31(0x80000000, 0);
+			}
+			if(L)
+			{
+				if(sign)
+				{
+					f31 l(0x92868247, 0);
+					if(z.exp < 0)
+					{
+						uint32 m = log2((z.m+1)>>1, 27);
+						z = f31(-((static_cast<uint32>(z.exp)<<26)+(m>>5)), 5);
+						for(; z.m<0x80000000; z.m<<=1,--z.exp) ;
+						l = l + z / lbe;
+					}
+					value = static_cast<unsigned>(x.exp&&l.exp<s.exp||(l.exp==s.exp&&l.m<s.m)) << 15;
+					s = value ? (s-l) : x.exp ? (l-s) : (l+s);
 				}
 				else
 				{
-					exp -= 15;
-					m = (m<<21) + (0x80000000>>exp);
-					int i = !(m&0x80000000);
-					x.m = (m>>i) | 0x80000000;
-					x.exp = exp + i;
+					value = static_cast<unsigned>(x.exp==0) << 15;
+					if(s.exp < -24)
+						return underflow<R>(value);
+					if(s.exp > 15)
+						return overflow<R>(value);
 				}
 			}
 			else
 			{
-				for(x.exp=-15; abs<0x400; abs<<=1,--x.exp) ;
-				x.exp += abs >> 10;
-				x.m = static_cast<uint32>((abs&0x3FF)|0x400) << 21;
-			}
-
-			q31 px[N], xk = x;
-			px[0] = p[0];
-			for(k=1; k<N; ++k)
-			{
-				if(k > 1)
+				s = s * lbe;
+				uint32 m;
+				if(s.exp < 0)
 				{
-					if(xk.exp < 0)
-					{
-						xk.m = 0x80000000 + (xk.m>>-xk.exp);
-						xk.exp = 0;
-					}
-					else
-						xk.m += 0x80000000 >> xk.exp;
-					int i = !(xk.m&0x80000000);
-					xk.m = (xk.m>>i) | 0x80000000;
-					xk.exp += i;
+					m = s.m >> -s.exp;
+					s.exp = 0;
 				}
-				int i = p[k].m >= xk.m, s;
-				px[k].m = divide64(p[k].m>>i, xk.m, s);
-				px[k].exp = p[k].exp - xk.exp + i - 1;
-			}
-
-			unsigned int pos_N;
-			switch(N)
-			{
-			case 4: std::swap(px[2], px[3]); pos_N = 3; break;
-			case 5: std::swap(px[2], px[3]); pos_N = 3; break;
-			case 6: std::swap(px[2], px[5]); pos_N = 4; break;
-			}
-
-			for(int k=1; k<pos_N; ++k) for(int j=k; j-->0 && px[j+1].exp>px[j].exp;) std::swap(px[j], px[j+1]);
-
-			q31 ps = px[pos_N];
-			for(k=pos_N-1; k-->0;)
-			{
-				q31 xk = px[k];
-				if(ps.exp > xk.exp)
-					std::swap(xk, ps);
-				int d = xk.exp - ps.exp;
-				assert(d < 31);
-				uint32 m = xk.m + ((d<31) ? ((ps.m>>d)|((ps.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
-				int i = (m&0xFFFFFFFF) < xk.m;
-				ps.m = (m>>i) | (m&i) | 0x80000000;
-				ps.exp = xk.exp + i;
-			}
-
-			if(N > 4)
-			{
-				if(px[pos_N+1].exp > px[pos_N].exp)
-					std::swap(px[pos_N], px[pos_N+1]);
-				int d = px[pos_N].exp - px[pos_N+1].exp;
-				assert(d < 31);
-				uint32 m = px[pos_N].m + ((d<31) ? ((px[pos_N+1].m>>d)|((px[pos_N+1].m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
-				int i = (m&0xFFFFFFFF) < px[pos_N].m;
-				px[pos_N].m = (m>>i) | (m&i) | 0x80000000;
-				px[pos_N].exp += i;
-			}
-
-			assert(px[pos_N].exp <= ps.exp);
-			int d = ps.exp - px[pos_N].exp;
-			ps.m -= (d<31) ? ((px[pos_N].m>>d)|((px[pos_N].m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1;
-			for(; ps.m<0x80000000; ps.m<<=1,--ps.exp) ;
-			assert(ps.exp >= 0);
-			assert(ps.exp > -32 && ps.exp < 32);
-
-			// t = x + g
-			q31 t = g[N-4];
-			{
-				if(x.exp > t.exp)
-					std::swap(t, x);
-				int d = t.exp - x.exp;
-				assert(d < 31);
-				uint32 m = t.m + ((d<31) ? ((x.m>>d)|((x.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
-				int i = (m&0xFFFFFFFF) < t.m;
-				t.m = (m>>i) | (m&i) | 0x80000000;
-				t.exp += i;
-			}
-			assert(t.exp >= 0);
-			assert(t.exp > -32 && t.exp < 32);
-
-			// x = x - 0.5
-			x.m -= 0x80000000 >> (x.exp+1);
-			for(; x.m<0x80000000; x.m<<=1,--x.exp) ;
-
-			bool lsign = false;
-			if(L)
-			{
-				ps.m = log2(ps.m>>1, ps.exp);
-				assert(ps.m != 0);
-				for(ps.exp=4; ps.m<0x80000000; ps.m<<=1,--ps.exp) ;
-				uint32 m = log2(t.m>>1, t.exp);
-				assert(m != 0);
-				for(x.exp+=4; m<0x80000000; m<<=1,--x.exp) ;
-				x.m = multiply64(x.m, m);
-				int i = x.m >> 31;
-				x.m <<= 1 - i;
-				x.exp += i;
-				if(ps.exp > x.exp)
-					std::swap(x, ps);
-				int d = x.exp - ps.exp, s;
-				assert(d < 31);
-				m = x.m + ((d<31) ? ((ps.m>>d)|((ps.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
-				i = (m&0xFFFFFFFF) < x.m;
-				x.m = (m>>i) | (m&i) | 0x80000000;
-				x.exp += i - 1;
-				i = m >= 0xB8AA3B29;
-				x.exp += i;
-				x.m = divide64(x.m>>i, 0xB8AA3B29, s);
-				x.m |= s;
-
-				if(t.exp > x.exp || (t.exp == x.exp && t.m > x.m))
+				else
 				{
-					std::swap(x, t);
-					lsign = true;
+					m = (s.m<<s.exp) & 0x7FFFFFFF;
+					s.exp = (s.m>>(31-s.exp));
 				}
-				d = x.exp - t.exp;
-				assert(d >= 0);
-				assert(d < 31);
-				x.m -= ((d<31) ? ((t.m>>d)|((t.m&((static_cast<uint32>(1)<<d)-1))!=0)) : 1);
-				assert(x.m != 0);
-				for(; x.m<0x80000000; x.m<<=1,--x.exp) ;
+				s.m = exp2(m, 27);
+				if(!x.exp)
+					s = f31(0x80000000, 0) / s;
+				if(sign)
+				{
+					if(z.exp < 0)
+						s = s * z;
+					s = pi / s;
+					if(s.exp < -24)
+						return underflow<R>(value);
+				}
+				if(s.exp > 15)
+					return overflow<R>(value);
 			}
-			else
-			{
-			}
-
-			assert(x.exp < 16);
-			assert(x.exp > -25);
-//			assert(x.exp > -14);
-			return fixed2half<R,31,false,false>(x.m, x.exp+14, static_cast<unsigned>(lsign)<<15);
-//			return std::log(s) + (arg-0.5)*std::log(t) - t;
-*/		}
-/*
-		/// Logarithm of gamma function.
-		/// \param arg function argument
-		/// \return approximated logarithm of gamma function
-		inline double lgamma(double arg)
-		{
-//			static const double p[] = { 2.50662846436560184574, 41.4174045302370911317, -27.0638924937115168658, 2.23931796330266601246 };
-//			static const double p[] = { 2.50662828350136765681, 92.2070484521121938211, -83.1776370828788963029, 14.8028319307817071942, -0.220849707953311479372 };
-			static const double p[] = { 2.50662827563479526904, 225.525584619175212544, -268.295973841304927459, 80.9030806934622512966, -5.00757863970517583837, 0.0114684895434781459556 };
-			static const double g[] = { 3.15, 3.85, 4.65 };
-			static const unsigned int N = sizeof(p) / sizeof(p[0]);
-			double s = p[0], t = arg + g[N-4];
-			for(unsigned int i=0; i<N-1; ++i)
-				s += p[i+1] / (arg+i);
-			assert(s > 1.0);
-			assert(t > 1.0);
-//			assert(std::log(s)+(arg-0.5)*std::log(t) > t);
-			return std::log(s) + (arg-0.5)*std::log(t) - t;
+			return fixed2half<R,31,false,false>(s.m, s.exp+14, value);
 		}
 		/// \}
-*/
-		/// Logarithm of gamma function.
-		/// \param arg function argument
-		/// \return approximated logarithm of gamma function
-		inline unsigned int lgamma(unsigned int m, int exp)
-		{
-			q31 x(m, exp), one(0x80000000, 0), v = one;
-			for(; x.exp<3; x=x+one)
-				v = v * x;
-			q31 w = one / (x*x);
-			return 0;
-		}
-
-		/// Logarithm of gamma function.
-		/// \param arg function argument
-		/// \return approximated logarithm of gamma function
-		inline double lgamma(double arg)
-		{
-			double v = 1.0;
-			for(; arg<8.0; ++arg)
-				v *= arg;
-			double w = 1.0 / (arg*arg);
-			return (((((((
-				-0.02955065359477124183006535947712*w+0.00641025641025641025641025641026)*w+
-				-0.00191752691752691752691752691753)*w+8.4175084175084175084175084175084e-4)*w+
-				-5.952380952380952380952380952381e-4)*w+7.9365079365079365079365079365079e-4)*w+
-				-0.00277777777777777777777777777778)*w+0.08333333333333333333333333333333)/arg +
-				0.91893853320467274178032973640562 - std::log(v) - arg + (arg-0.5) * std::log(arg);
-		}
 
 		template<typename,typename,std::float_round_style> struct half_caster;
 	}
@@ -2190,7 +2080,7 @@ namespace std
 
 namespace half_float
 {
-	/// \anchor comparison
+	/// \anchor compop
 	/// \name Comparison operators
 	/// \{
 
@@ -3512,6 +3402,7 @@ namespace half_float
 	}
 
 	/// Natural logarithm of gamma function.
+	/// This function may be 1 ulp off the correctly rounded result for any rounding mode in ~0.025% of inputs.
 	/// \param arg function argument
 	/// \return natural logarith of gamma function for \a arg
 	inline half lgamma(half arg)
@@ -3522,65 +3413,16 @@ namespace half_float
 		int abs = arg.data_ & 0x7FFF;
 		if(!abs || abs >= 0x7C00)
 			return (abs<=0x7C00) ? half(detail::binary, 0x7C00) : arg;
+		if(arg.data_ >= 0xE400 || (arg.data_ >= 0xBC00 && !(abs&((1<<(25-(abs>>10)))-1))))
+			return half(detail::binary, 0x7C00);
 		if(arg.data_ == 0x3C00 || arg.data_ == 0x4000)
 			return half(detail::binary, 0);
-//		bool is_int = abs >= 0x6400 || (abs>=0x3C00 && !(abs&((1<<(25-(abs>>10)))-1)));
-		if(arg.data_ >= 0xE800 || (arg.data_ >= 0xBC00 && !(abs&((1<<(25-(abs>>10)))-1))))
-			return half(detail::binary, 0x7C00);
-
-		double x = detail::half2float<double>(arg.data_);
-		if(x < 0.0)
-		{
-			double i, f = std::modf(-x, &i);
-			return half(detail::binary, detail::float2half<half::round_style>(1.1447298858494001741434273513531-
-				std::log(std::sin(3.1415926535897932384626433832795*f))-detail::lgamma(1.0-x)));
-		}
-		return half(detail::binary, detail::float2half<half::round_style>(detail::lgamma(x)));
-
-		if(arg.data_ == 0x3800)
-			return half(detail::binary, detail::rounded<half::round_style>(0x3894, 0, 1));
-
-		if((arg.data_&0x8000) || arg.data_ < 0x4000 || arg.data_ > 0x4400)
-			return half(detail::binary, detail::float2half<half::round_style>(std::lgamma(detail::half2float<double>(arg.data_))));
-
 		return half(detail::binary, detail::gamma<half::round_style,true>(arg.data_));
-/*
-		double x = detail::half2float<double>(arg.data_);
-		if(x < 0.5)
-			x = 1.1447298858494001741434273513531 - std::log(std::abs(std::sin(3.1415926535897932384626433832795*x))) - detail::lgamma(1.0-x);
-		else
-			x = detail::lgamma(x);
-		return half(detail::binary, detail::float2half<half::round_style>(x));
-/*
-		static const double q[] = { 75122.6331530, 80916.6278952, 36308.2951477, 8687.24529705, 1168.92649479, 83.8676043424, 2.50662827511 };
-		if(x < 0.0)
-			x = std::lgamma(x);
-		else
-		{
-			double xn[7] = { 1.0 }, s = 0, t = x + 5.5;
-			for(unsigned int i=1; i<7; ++i)
-				xn[i] = xn[i-1] * x;
-			for(unsigned int i=0; i<7; ++i)
-				s += q[i] * xn[i];
-			for(unsigned int i=0; i<7; ++i)
-				s /= x + i;
-			x = std::log(s) + (x+0.5)*std::log(t) - t;
-		}
-		return half(detail::binary, detail::float2half<half::round_style>(x));
-
-		if(arg.data_ & 0x8000)
-		{
-			float i, f = std::modf(-arg, &i);
-			if(f == 0.0f)
-				return std::numeric_limits<half>::infinity();
-			return half(static_cast<float>(1.1447298858494001741434273513531-
-				std::log(std::abs(std::sin(3.1415926535897932384626433832795*f)))-detail::lgamma(1.0-arg)));
-		}
-		return half(static_cast<float>(detail::lgamma(static_cast<double>(arg))));
-*/	#endif
+	#endif
 	}
 
 	/// Gamma function.
+	/// This function may be 1 ulp off the correctly rounded result for any rounding mode in <0.25% of inputs.
 	/// \param arg function argument
 	/// \return gamma function value of \a arg
 	inline half tgamma(half arg)
@@ -3588,70 +3430,19 @@ namespace half_float
 	#if defined(HALF_ARITHMETIC_TYPE) && HALF_ENABLE_CPP11_CMATH
 		return half(detail::binary, detail::float2half<half::round_style>(std::tgamma(detail::half2float<detail::internal_t>(arg.data_))));
 	#else
-		unsigned int abs = arg.data_ & 0x7FFF, value = arg.data_ & 0x8000;
-		if(abs >= 0x7C00)
+		unsigned int abs = arg.data_ & 0x7FFF;
+		if(abs >= 0x7C00 || arg.data_ == 0x3C00)
 			return half(detail::binary, arg.data_|-static_cast<unsigned>(arg.data_==0xFC00));
 		if(!abs)
-			return half(detail::binary, value|0x7C00);
-//		bool is_int = abs >= 0x6400 || (abs>=0x3C00 && !(abs&((1<<(25-(abs>>10)))-1)));
+			return half(detail::binary, arg.data_|0x7C00);
 		if(arg.data_ >= 0xE400 || (arg.data_ >= 0xBC00 && !(abs&((1<<(25-(abs>>10)))-1))))
-			return half(detail::binary, 0xFFFF);
-
-		double x = detail::half2float<double>(arg.data_);
-		if(arg < 0.0)
-		{
-			double i, f = std::modf(-x, &i), value = 3.1415926535897932384626433832795 / 
-				(std::sin(3.1415926535897932384626433832795*f)*std::exp(detail::lgamma(1.0-x)));
-			return half(detail::binary, detail::float2half<half::round_style>((std::fmod(i, 2.0)==0.0) ? -value : value));
-		}
-		return half(detail::binary, detail::float2half<half::round_style>(std::exp(detail::lgamma(x))));
-
-		// > +10, < 2^-16
-		if(arg.data_ < 0x100 || (!value && arg.data_ >= 0x4900))
+			return half(detail::binary, 0x7FFF);
+		if(arg.data_ >= 0xCA80)
+			return half(detail::binary, detail::underflow<half::round_style>((1-((abs>>(25-(abs>>10)))&1))<<15));
+		if(arg.data_ <= 0x100 || (arg.data_ >= 0x4900 && arg.data_ < 0x8000))
 			return half(detail::binary, detail::overflow<half::round_style>());
-
-		if(arg.data_ == 0x3800)
-			return half(detail::binary, detail::rounded<half::round_style>(0x3F16, 1, 1));
-
-//		return half(detail::binary, detail::float2half<half::round_style>(std::lgamma(detail::half2float<double>(arg.data_))));
-/*
-		double x = detail::half2float<double>(arg.data_);
-		if(x > 10.0)
-			return half(detail::binary, detail::overflow<half::round_style>());
-		if(x < 0.5)
-			x = 3.1415926535897932384626433832795 / (std::sin(3.1415926535897932384626433832795*x)*std::exp(detail::lgamma(1.0-x)));
-		else
-			x = std::exp(detail::lgamma(x));
-		return half(detail::binary, detail::float2half<half::round_style>(x));
-/*
-		static const double q[] = { 75122.6331530, 80916.6278952, 36308.2951477, 8687.24529705, 1168.92649479, 83.8676043424, 2.50662827511 };
-		if(x < 0.0)
-			x = std::tgamma(x);
-		else
-		{
-			double xn[7] = { 1.0 }, s = 0, t = x + 5.5;
-			for(unsigned int i=1; i<7; ++i)
-				xn[i] = xn[i-1] * x;
-			for(unsigned int i=0; i<7; ++i)
-				s += q[i] * xn[i];
-			for(unsigned int i=0; i<7; ++i)
-				s /= x + i;
-			x = s * std::pow(t, x+0.5) * std::exp(-t);
-		}
-		return half(detail::binary, detail::float2half<half::round_style>(x));
-
-		if(arg.data_&0x8000)
-		{
-			float i, f = std::modf(-arg, &i);
-			if(f == 0.0f)
-				return std::numeric_limits<half>::quiet_NaN();
-			double value = 3.1415926535897932384626433832795 / (std::sin(3.1415926535897932384626433832795*f)*std::exp(detail::lgamma(1.0-arg)));
-			return half(static_cast<float>((std::fmod(i, 2.0f)==0.0f) ? -value : value));
-		}
-		if(abs == 0x7C00)
-			return arg;
-		return half(static_cast<float>(std::exp(detail::lgamma(static_cast<double>(arg)))));
-*/	#endif
+		return half(detail::binary, detail::gamma<half::round_style,false>(arg.data_));
+	#endif
 	}
 
 	/// \}
@@ -3915,7 +3706,7 @@ namespace half_float
 	inline HALF_CONSTEXPR bool signbit(half arg) { return (arg.data_&0x8000) != 0; }
 
 	/// \}
-	/// \anchor comparison
+	/// \anchor compfunc
 	/// \name Comparison
 	/// \{
 
