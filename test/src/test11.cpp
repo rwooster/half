@@ -60,25 +60,25 @@ int ilog2(int i)
 	auto start = std::chrono::high_resolution_clock::now(); \
 	for(unsigned int i=0; i<N; ++i) for(unsigned int h=0; h<x.size(); ++h) results[h] = func(x[h]); \
 	auto tm = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count(); \
-	log_ << #func << "\tx " << N << ":\t" << tm << "\n\n"; if(csv_) *csv_ << tm << '\n'; }
+	log_ << #func << "\tx " << N << ":\t" << tm << "\n\n"; if(csv_) *csv_ << #func << ';' << tm << '\n'; }
 
 #define BINARY_PERFORMANCE_TEST(func, x, y, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
 	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) results[j] = func(x[i], y[j]); \
 	auto tm = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count(); \
-	log_ << #func << "\t@ 1/" << (N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << tm << '\n'; }
+	log_ << #func << "\t@ 1/" << (N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << #func << ';' << tm << '\n'; }
 
 #define OPERATOR_PERFORMANCE_TEST(op, x, y, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
 	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) results[j] = x[i] op y[j]; \
 	auto tm = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count(); \
-	log_ << #op << "\t@ 1/" << (N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << tm << '\n'; }
+	log_ << #op << "\t@ 1/" << (N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << #op << ';' << tm << '\n'; }
 
 #define TERNARY_PERFORMANCE_TEST(func, x, y, z, N) { \
 	auto start = std::chrono::high_resolution_clock::now(); \
 	for(unsigned int i=0; i<x.size(); i+=N) for(unsigned int j=0; j<y.size(); j+=N) for(unsigned int k=0; k<z.size(); k+=N) results[k] = func(x[i], y[j], z[k]); \
 	auto tm = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start).count(); \
-	log_ << #func << "\t@ 1/" << (N*N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << tm << '\n'; }
+	log_ << #func << "\t@ 1/" << (N*N*N) << ":\t" << tm << "\n\n"; if(csv_) *csv_ << #func << ';' << tm << '\n'; }
 
 
 using half_float::half;
@@ -168,7 +168,7 @@ public:
 
 	unsigned int test()
 	{
-
+/*
 		//test size
 		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
 
@@ -186,26 +186,26 @@ public:
 		unary_test("signbit", [](half arg) -> bool { double f = arg; return isnan(arg) || f==0.0 || (signbit(arg)==(f<0.0)); });
 
 		//test operators
-		unary_test("prefix increment", [](half arg) -> bool { double f = static_cast<double>(arg); 
-			return comp(static_cast<half>(++f), ++arg) && comp(static_cast<half>(f), arg); });
-		unary_test("prefix decrement", [](half arg) -> bool { double f = static_cast<double>(arg); 
-			return comp(static_cast<half>(--f), --arg) && comp(static_cast<half>(f), arg); });
-		unary_test("postfix increment", [](half arg) -> bool { double f = static_cast<double>(arg); 
-			return comp(static_cast<half>(f++), arg++) && comp(static_cast<half>(f), arg); });
-		unary_test("postfix decrement", [](half arg) -> bool { double f = static_cast<double>(arg); 
-			return comp(static_cast<half>(f--), arg--) && comp(static_cast<half>(f), arg); });
+		unary_test("prefix increment", [](half arg) -> bool { double f = half_cast<double>(arg); 
+			return comp(static_cast<half>(++f), ++arg) && comp(half_cast<half>(f), arg); });
+		unary_test("prefix decrement", [](half arg) -> bool { double f = half_cast<double>(arg); 
+			return comp(static_cast<half>(--f), --arg) && comp(half_cast<half>(f), arg); });
+		unary_test("postfix increment", [](half arg) -> bool { double f = half_cast<double>(arg); 
+			return comp(static_cast<half>(f++), arg++) && comp(half_cast<half>(f), arg); });
+		unary_test("postfix decrement", [](half arg) -> bool { double f = half_cast<double>(arg); 
+			return comp(static_cast<half>(f--), arg--) && comp(half_cast<half>(f), arg); });
 		unary_test("unary plus", [](half arg) { return comp(+arg, arg); });
-		unary_test("unary minus", [](half arg) { return comp(-arg, half_cast<half>(-static_cast<double>(arg))); });
-		binary_test("addition", [](half a, half b) { return comp(a+b, half_cast<half>(static_cast<double>(a)+static_cast<double>(b))); });
-		binary_test("subtraction", [](half a, half b) { return comp(a-b, half_cast<half>(static_cast<double>(a)-static_cast<double>(b))); });
-		binary_test("multiplication", [](half a, half b) { return comp(a*b, half_cast<half>(static_cast<double>(a)*static_cast<double>(b))); });
-		binary_test("division", [](half a, half b) { return comp(a/b, half_cast<half>(static_cast<double>(a)/static_cast<double>(b))); });
-		binary_test("equal", [](half a, half b) { return (a==b) == (static_cast<double>(a)==static_cast<double>(b)); });
-		binary_test("not equal", [](half a, half b) { return (a!=b) == (static_cast<double>(a)!=static_cast<double>(b)); });
-		binary_test("less", [](half a, half b) { return (a<b) == (static_cast<double>(a)<static_cast<double>(b)); });
-		binary_test("greater", [](half a, half b) { return (a>b) == (static_cast<double>(a)>static_cast<double>(b)); });
-		binary_test("less equal", [](half a, half b) { return (a<=b) == (static_cast<double>(a)<=static_cast<double>(b)); });
-		binary_test("greater equal", [](half a, half b) { return (a>=b) == (static_cast<double>(a)>=static_cast<double>(b)); });
+		unary_test("unary minus", [](half arg) { return comp(-arg, half_cast<half>(-half_cast<double>(arg))); });
+		binary_test("addition", [](half a, half b) { return comp(a+b, half_cast<half>(half_cast<double>(a)+half_cast<double>(b))); });
+		binary_test("subtraction", [](half a, half b) { return comp(a-b, half_cast<half>(half_cast<double>(a)-half_cast<double>(b))); });
+		binary_test("multiplication", [](half a, half b) { return comp(a*b, half_cast<half>(half_cast<double>(a)*half_cast<double>(b))); });
+		binary_test("division", [](half a, half b) { return comp(a/b, half_cast<half>(half_cast<double>(a)/half_cast<double>(b))); });
+		binary_test("equal", [](half a, half b) { return (a==b) == (half_cast<double>(a)==half_cast<double>(b)); });
+		binary_test("not equal", [](half a, half b) { return (a!=b) == (half_cast<double>(a)!=half_cast<double>(b)); });
+		binary_test("less", [](half a, half b) { return (a<b) == (half_cast<double>(a)<half_cast<double>(b)); });
+		binary_test("greater", [](half a, half b) { return (a>b) == (half_cast<double>(a)>half_cast<double>(b)); });
+		binary_test("less equal", [](half a, half b) { return (a<=b) == (half_cast<double>(a)<=half_cast<double>(b)); });
+		binary_test("greater equal", [](half a, half b) { return (a>=b) == (half_cast<double>(a)>=half_cast<double>(b)); });
 
 		//test basic functions
 		unary_test("abs", [](half arg) { return comp(abs(arg), half_cast<half>(std::abs(half_cast<double>(arg)))); });
@@ -230,7 +230,7 @@ public:
 		unary_reference_test("cbrt", half_float::cbrt);
 		binary_reference_test("pow", half_float::pow);
 		binary_reference_test<half(half,half)>("hypot", half_float::hypot);
-		ternary_reference_test<half(half,half,half)>("hypot3", half_float::hypot);
+//		ternary_reference_test<half(half,half,half)>("hypot3", half_float::hypot);
 
 		//test trig functions
 		unary_reference_test("sin", half_float::sin);
@@ -292,7 +292,7 @@ public:
 		binary_test("remainder", [](half x, half y) { return comp(remainder(x, y), half_cast<half>(std::remainder(half_cast<double>(x), half_cast<double>(y)))); });
 		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; return comp(remquo(a, b, &qh),
 			half_cast<half>(std::remquo(static_cast<double>(a), static_cast<double>(b), &qf))) && (qh&7)==(qf&7); });
-		binary_test("fmin", [](half x, half y) { return comp(fmin(x, y), half_cast<half,double>(std::fmin(half_cast<double,half>(x), half_cast<double,half>(y)))); });
+		binary_test("fmin", [](half x, half y) { return comp(fmin(x, y), half_cast<half>(std::fmin(half_cast<double>(x), half_cast<double>(y)))); });
 		binary_test("fmax", [](half x, half y) { return comp(fmax(x, y), half_cast<half>(std::fmax(half_cast<double>(x), half_cast<double>(y)))); });
 		binary_test("fdim", [](half x, half y) { return comp(fdim(x, y), half_cast<half>(std::fdim(half_cast<double>(x), half_cast<double>(y)))); });
 		ternary_test("fma", [](half x, half y, half z) { return comp(fma(x, y, z), half_cast<half>(std::fma(half_cast<double>(x), half_cast<double>(y), half_cast<double>(z)))); });
@@ -452,7 +452,7 @@ public:
 		simple_test("literals", []() -> bool { using namespace half_float::literal; return comp(0.0_h, half(0.0f)) && comp(-1.0_h, half(-1.0f)) && 
 			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3f)); });
 	#endif
-
+*/
 		if(failed_.empty())
 			log_ << "all tests passed\n";
 		else
@@ -600,6 +600,8 @@ private:
 				log_ << (iterB->second.size()-passed) << " of " << iterB->second.size() << " FAILED\n";
 			}
 		}
+		if(csv_)
+			*csv_ << name << ";" << failed << '\n';
 		if(failed)
 			log_ << failed << " FAILED\n\n";
 		else
@@ -649,6 +651,8 @@ private:
 			}
 		}
 		bool passed = count == tests;
+		if(csv_)
+			*csv_ << name << ";" << (tests-count) << '\n';
 		if(passed)
 			log_ << "all passed\n\n";
 		else
@@ -707,6 +711,8 @@ private:
 			}
 		}
 		bool passed = count == tests;
+		if(csv_)
+			*csv_ << name << ";" << (tests-count) << '\n';
 		if(passed)
 			log_ << "all passed\n\n";
 		else
@@ -821,6 +827,8 @@ private:
 				}
 				passed += equal;
 			}
+			if(csv_)
+				*csv_ << name << ";" << (count-passed) << '\n';
 			return passed == count;
 		});
 		if(passed != count)
@@ -856,6 +864,8 @@ private:
 				}
 				passed += equal;
 			}
+			if(csv_)
+				*csv_ << name << ";" << (count-passed) << '\n';
 			return passed == count;
 		});
 		if(passed != count)
@@ -889,10 +899,17 @@ int main(int argc, char *argv[]) try
 #ifndef HALF_ARITHMETIC_TYPE
 	switch(std::numeric_limits<half>::round_style)
 	{
+	#ifdef _WIN32
+		case std::round_to_nearest: _controlfp(_MCW_RC, _RC_NEAR); break;
+		case std::round_toward_zero: _controlfp(_MCW_RC, _RC_CHOP); break;
+		case std::round_toward_infinity: _controlfp(_MCW_RC, _RC_UP); break;
+		case std::round_toward_neg_infinity: _controlfp(_MCW_RC, _RC_DOWN); break;
+	#else
 		case std::round_to_nearest: std::fesetround(FE_TONEAREST); break;
 		case std::round_toward_zero: std::fesetround(FE_TOWARDZERO); break;
 		case std::round_toward_infinity: std::fesetround(FE_UPWARD); break;
 		case std::round_toward_neg_infinity: std::fesetround(FE_DOWNWARD); break;
+	#endif
 	}
 #endif
 /*
@@ -960,16 +977,6 @@ int main(int argc, char *argv[]) try
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(3.15l, 31-1)) << '\n';
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(3.85l, 31-1)) << '\n';
 	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(9) << std::llrint(std::ldexp(4.65l, 31-2)) << '\n';
-
-	std::cout << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << std::llrint(std::ldexp(1./3.1415926535897932384626433832795l, 61)) << '\n';
-	return 0;
-
-	std::cout << std::hexfloat << std::setprecision(13) << std::lgamma(0.5) << '\n';
-	std::cout << std::hexfloat << std::setprecision(13) << std::tgamma(0.5) << '\n';
-	return 0;
-
-	std::cout << std::lgamma(2.5) << '\n';
-	std::cout << lgamma(2.5_h) << '\n';
 	return 0;
 
 	for(std::uint16_t i=0xBC00; i<0xFC00; ++i)
@@ -979,13 +986,6 @@ int main(int argc, char *argv[]) try
 		if(y == 0.0_h)
 			return 0;
 	}
-
-	std::cout << fmin(998.0_h, b2h(31745)) << " vs " << std::fmin(half_cast<double>(998.0_h), half_cast<double>(b2h(31745))) << '\n';
-	std::cout << fmax(998.0_h, b2h(31745)) << " vs " << std::fmax(half_cast<double>(998.0_h), half_cast<double>(b2h(31745))) << '\n';
-	std::cout << half_cast<double>(998.0_h) << " vs " << half_cast<half>(998.0) << '\n';
-	std::cout << half_cast<double>(b2h(31745)) << " vs " << half_cast<half>(std::numeric_limits<double>::quiet_NaN()) << '\n';
-	std::cout << std::hex << 31745 << ", " << 64513 << std::dec << '\n';
-	return 0;
 */
 	std::vector<std::string> args(argv+1, argv+argc);
 	std::unique_ptr<std::ostream> file, csv;
