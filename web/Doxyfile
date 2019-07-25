@@ -2131,8 +2131,10 @@ PREDEFINED             = HALF_DOXYGEN_ONLY \
                          FP_NORMAL \
                          HALF_ENABLE_CPP11_HASH \
                          HALF_ENABLE_CPP11_USER_LITERALS \
+                         HALF_ENABLE_CPP11_THREAD_LOCAL \
                          HALF_ENABLE_CPP11_CSTDINT \
                          HALF_ENABLE_CPP11_CMATH \
+                         HALF_ENABLE_CPP11_CFENV \
                          HALF_ENABLE_CPP11_CONSTEXPR \
                          HALF_ENABLE_CPP11_LONG_LONG \
                          HALF_ENABLE_CPP11_NOEXCEPT \

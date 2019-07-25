@@ -23,21 +23,26 @@ is useful when the automatic detection fails (for more exotic implementations)
 or when a feature should be explicitly disabled:
 
   - 'long long' integer type for mathematical functions returning 'long long' 
-    results (enabled for VC++ 2003 and newer, gcc and clang, overridable with 
-    'HALF_ENABLE_CPP11_LONG_LONG').
+    results (enabled for VC++ 2003 and icc 11.1 and newer, gcc and clang, 
+    overridable with 'HALF_ENABLE_CPP11_LONG_LONG').
 
   - Static assertions for extended compile-time checks (enabled for VC++ 2010, 
-    gcc 4.3, clang 2.9 and newer, overridable with 'HALF_ENABLE_CPP11_STATIC_ASSERT').
+    gcc 4.3, clang 2.9, icc 11.1 and newer, overridable with 
+    'HALF_ENABLE_CPP11_STATIC_ASSERT').
 
-  - Generalized constant expressions (enabled for VC++ 2015, gcc 4.6, clang 3.1 
-    and newer, overridable with 'HALF_ENABLE_CPP11_CONSTEXPR').
+  - Generalized constant expressions (enabled for VC++ 2015, gcc 4.6, clang 3.1, 
+    icc 14.0 and newer, overridable with 'HALF_ENABLE_CPP11_CONSTEXPR').
 
-  - noexcept exception specifications (enabled for VC++ 2015, gcc 4.6, clang 3.0 
-    and newer, overridable with 'HALF_ENABLE_CPP11_NOEXCEPT').
+  - noexcept exception specifications (enabled for VC++ 2015, gcc 4.6, 
+    clang 3.0, icc 14.0 and newer, overridable with 'HALF_ENABLE_CPP11_NOEXCEPT').
 
   - User-defined literals for half-precision literals to work (enabled for 
-    VC++ 2015, gcc 4.7, clang 3.1 and newer, overridable with 
+    VC++ 2015, gcc 4.7, clang 3.1, icc 15.0 and newer, overridable with 
     'HALF_ENABLE_CPP11_USER_LITERALS').
+
+  - Thread-local storage for per-thread floating-point exception flags (enabled 
+    for VC++ 2015, gcc 4.8, clang 3.3, icc 15.0 and newer, overridable with 
+    'HALF_ENABLE_CPP11_THREAD_LOCAL').
 
   - Type traits and template meta-programming features from <type_traits> 
     (enabled for VC++ 2010, libstdc++ 4.3, libc++ and newer, overridable with 
@@ -50,6 +55,10 @@ or when a feature should be explicitly disabled:
     floating point classification during conversions from higher precision types 
     (enabled for VC++ 2013, libstdc++ 4.3, libc++ and newer, overridable with 
     'HALF_ENABLE_CPP11_CMATH').
+
+  - Floating point environment control from <cfenv> for possible exception 
+    propagation to the built-in floating-point platform (enabled for VC++ 2013, 
+    libstdc++ 4.3, libc++ and newer, overridable with 'HALF_ENABLE_CPP11_CFENV').
 
   - Hash functor 'std::hash' from <functional> (enabled for VC++ 2010, 
     libstdc++ 4.3, libc++ and newer, overridable with 'HALF_ENABLE_CPP11_HASH').

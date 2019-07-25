@@ -44,7 +44,7 @@
 	#include <unordered_map>
 #endif
 
-#if HALF_ENABLE_CPP11_CMATH && !defined(HALF_ARITHMETIC_TYPE)
+#if HALF_ENABLE_CPP11_CFENV && !defined(HALF_ARITHMETIC_TYPE)
 	#include <cfenv>
 	#pragma STDC FENV_ACCESS ON
 #endif
