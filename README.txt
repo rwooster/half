@@ -258,11 +258,11 @@ theoretically NOT be thread-safe (while practically being as thread-safe as a
 simple integer variable can be). These flags can be managed explicitly using 
 the library's error handling functions, which again try to mimic the built-in 
 functions for handling floating-point exceptions from <cfenv>. You can clear 
-them with 'clearexcept' (which is the only way a flag can be cleared), test 
-them with 'testexcept', explicitly raise errors with 'raiseexcept' and save and 
-restore their state using 'getexceptflag' and 'setexceptflag'. You can also 
-throw corresponding C++ exceptions based on the current flag state using 
-'throwexcept'.
+them with 'feclearexcept' (which is the only way a flag can be cleared), test 
+them with 'fetestexcept', explicitly raise errors with 'feraiseexcept' and save 
+and restore their state using 'fegetexceptflag' and 'fesetexceptflag'. You can 
+also throw corresponding C++ exceptions based on the current flag state using 
+'fethrowexcept'.
 
 However, any automatic exception detection and handling during half-precision 
 operations and functions is DISABLED by default, since it comes with a minor 
@@ -281,8 +281,9 @@ listed here:
   - 'HALF_ERRHANDLING_FENV' will propagate exceptions to the built-in 
     floating-point implementation using 'std::feraiseexcept' if support for 
     C++11 floating-point control is enabled.
-  - 'HALF_ERRHANDLING_THROW_...' will throw a corresponding C++ exception when 
-    a 'HALF_FE_...' exception occurs, similar to the behaviour of 'throwexcept'.
+  - 'HALF_ERRHANDLING_THROW_...' can be defined to a string literal which will 
+    be used as description message for a C++ exception that is thrown whenever 
+    a 'HALF_FE_...' exception occurs, similar to the behaviour of 'fethrowexcept'.
 
 If any of the above error handling is activated, non-quiet operations on 
 half-precision values will also raise a 'HALF_FE_INVALID' exception whenever 
